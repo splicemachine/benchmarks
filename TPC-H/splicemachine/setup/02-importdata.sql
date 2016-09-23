@@ -1,0 +1,10 @@
+set schema TPCH;
+elapsedtime on;
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'LINEITEM', null, '/TPCH/lineitem', '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'ORDERS',   null, '/TPCH/orders',   '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'CUSTOMER', null, '/TPCH/customer', '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'PARTSUPP', null, '/TPCH/partsupp', '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'SUPPLIER', null, '/TPCH/supplier', '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'PART',     null, '/TPCH/part',     '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'REGION',   null, '/TPCH/region',   '|', null, null, null, null, 0, '/BAD', true, null);
+call SYSCS_UTIL.IMPORT_DATA ('TPCH', 'NATION',   null, '/TPCH/nation',   '|', null, null, null, null, 0, '/BAD', true, null);

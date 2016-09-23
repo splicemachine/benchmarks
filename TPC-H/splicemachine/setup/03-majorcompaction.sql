@@ -1,0 +1,3 @@
+set schema TPCH;
+elapsedtime on;
+call SYSCS_UTIL.SYSCS_PERFORM_MAJOR_COMPACTION_ON_SCHEMA('TPCH');
