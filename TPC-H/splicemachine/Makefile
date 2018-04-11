@@ -1,12 +1,6 @@
 NAME = splicemachine/benchmark
 VERSION = 0.1.3
 
-#GITTAG = $(shell git describe --tags)
-
-#ifeq ($(GITTAG), )
-#GITTAG = $(subst -,_,$(shell git describe --tags --dirty --always|grep -oe '[^-]*\(-dirty\)\?$$'))
-#endif
-
 .PHONY: all build clean push realclean
 
 all: build
@@ -17,7 +11,6 @@ run:
 build:
 	docker build --rm --compress -t $(NAME):$(VERSION) -f Dockerfile .
 	docker tag $(NAME):$(VERSION) $(NAME):latest
-	#docker tag $(NAME):$(VERSION) $(NAME):$(GITTAG)
 
 push:
 	docker push $(NAME):latest
