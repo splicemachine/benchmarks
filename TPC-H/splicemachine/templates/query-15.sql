@@ -1,4 +1,3 @@
-elapsedtime on;
 -- QUERY 15
 create view revenue0 (supplier_no, total_revenue) as
 	select
@@ -12,6 +11,7 @@ create view revenue0 (supplier_no, total_revenue) as
 	group by
 		l_suppkey;
 
+elapsedtime on;
 select
 	s_suppkey,
 	s_name,
@@ -32,6 +32,7 @@ where
 order by
 	s_suppkey;
 
+elapsedtime off;
 drop view revenue0
 -- END OF QUERY
 ;
