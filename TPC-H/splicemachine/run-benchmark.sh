@@ -297,8 +297,8 @@ fillTemplate() {
     return 1
   fi
   cp $input $output
-  sed  -e "s/##SCHEMA##/$schema/g" -i $output
-  sed  -e "s/##SCALE##/$scale/g" -i $output
+  sed -i '' -e "s/##SCHEMA##/$schema/g"  $output
+  sed -i '' -e "s/##SCALE##/$scale/g"   $output
 }
 
 # create and load the TPCH database for this scale
@@ -318,7 +318,7 @@ createTPCHdatabase() {
 
   # create the actual database
   runQuery "setup-01-tables.sql"
-  runQuery "setup-02-import.sql"
+  runQuery "setup-02-lame.sql"
   runQuery "setup-03-indexes.sql"
   runQuery "setup-04-compact.sql"
   runQuery "setup-05-stats.sql"
