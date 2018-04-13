@@ -118,12 +118,13 @@ fi
 TPCHMIN=1
 TPCHMAX=22
 
+# TOODO: implement validation checks
 # TOODO: implement actual benchmark
 
 #============
 # Argument Checking
 
-# HOST or URL are required
+# Either HOST or URL are required
 HOSTORURL=""
 if [[ "$HOST" == "" && "$URL" == "" ]]; then
   echo "Error: One of host or url must be supplied!"
@@ -196,7 +197,7 @@ runQuery() {
   local queryfile=${SQLDIR}/${1}
   local outfile=${LOGDIR}/${1//sql/out}
 
-  if [ "$TIMEOUT" -eq 0 ]; then
+  if [[ $TIMEOUT -eq 0 ]]; then
     $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
     return $?
   else
@@ -210,7 +211,7 @@ runQuery() {
 	while [ "${queryruntime}" -le "${timeout}" ]; do
 		ps --no-headers ${qpid} >/dev/null
 		local jobstatus=$?
-		if [ "${jobstatus}" -eq 0 ]; then
+		if [[ ${jobstatus} -eq 0 ]]; then
 			((queryruntime++))
 		else
 			break
@@ -219,7 +220,7 @@ runQuery() {
 	done
 	ps --no-headers ${qpid} >/dev/null
 	jobrunning=$?
-	if [ "${jobrunning}" -eq 0 ]; then
+	if [[ ${jobrunning} -eq 0 ]]; then
 		$SQLSHELL -q ${HOSTORURL} <<< "call SYSCS_UTIL.SYSCS_KILL_ALL_STATEMENTS();"
 	fi
   fi
@@ -258,29 +259,73 @@ addSchemaToQuery() {
 
 }
 
-# validate that a TPCH schema has the right tables
-checkTPCHSchema() {
+# count tables in a schema compare to expect
+checkTableCount() {
    local schema=$1
-   #echo "select count(1) from sys.sysschemas where schemaname = '${schema}';" 
+   local -i expect=$2
 
-   local query="checkSchema.sql"
-   local -i expected=8
-   echo "select count(1) from sys.systables t join sys.sysschemas s on s.SCHEMAID=t.SCHEMAID and s.SCHEMANAME='${schema}';" > $SQLDIR/$query
+   local query="checkTableCount.sql"
+   echo "select count(1) from sys.systables c join sys.sysschemas s on c.schemaid = s.schemaid where s.schemaname='${schema}';" > $SQLDIR/$query
    runQuery $query
    countResults $LOGDIR/${query/sql/out}
    local -i count=$?
 
-   debug "CheckTPCHSchema: found $count from $query"
-   if [[ "$count" -ne "$expected" ]]; then
+   debug "CheckTableCount: found $count from $query"
+   if [[ "$count" -ne "$expect" ]]; then
      debug Schema $schema: incorrect table count $count
      return 1
    else
-     debug Schema $schema has $expected tables
+     debug Schema $schema has $expect tables
      return 0
    fi
+}
 
-   # TODO: check that indexes are present
+# check index count
+checkIndexCount() {
+   local schema=$1
+   local -i expect=$2
+
+   local query="checkIndexes.sql"
+   echo "select count(1) from sys.sysconglomerates c join sys.sysschemas s on c.schemaid = s.schemaid where s.schemaname='${schema}' and  c.isindex=true;" > $SQLDIR/$query
+   runQuery $query
+   countResults $LOGDIR/${query/sql/out}
+   local -i count=$?
+
+   debug "CheckIndexCount: found $count from $query"
+   if [[ "$count" -ne "$expect" ]]; then
+     debug Schema $schema: incorrect index count $count
+     return 1
+   else
+     debug Schema $schema has $expect indexes
+     return 0
+   fi
+} 
+
+# validate that a TPCH schema has the right tables
+checkTPCHSchema() {
+   local schema=$1
+   # TODO: ensure schema
+   #echo "select count(1) from sys.sysschemas where schemaname = '${schema}';" 
+   #local query="checkSchema.sql"
+
+   # check that tables are present
+   if ( ! checkTableCount $schema 8 ); then
+      debug Schema $schema: missing 8 tables
+      return 1
+   else
+     debug Schema $schema has 8 tables
+   fi
+
+   # check that indexes are present
+   if ( ! checkIndexCount $schema 4 ); then
+      debug Schema $schema: missing 4 indices
+      return 1
+   else
+     debug Schema $schema has 4 indices
+   fi
+
    # TODO: check that non-zero statistics are present
+   # "select sum(stats) from sys.statistics where schemaname = '${schema}';"
    # TODO: check that all the tables in setup-06-count.out  have the 'right' counts
 
 }
@@ -308,6 +353,7 @@ createTPCHdatabase() {
   local schema=$1
   local scale=$2
 
+  local -i errCount
   debug "Creating TPCH at $schema for scale $scale"
 
   # duplicate templates and substitute SCHEMA and SCALE etc
@@ -324,12 +370,28 @@ createTPCHdatabase() {
   # TODO: check table was made
 
   message "$SCHEMA: Loading data"
-  runQuery "setup-02-lame.sql"
-  # TODO: handle s3 load error
+   
+  if [[ "$HOST" != "" ]]; then
+    runQuery "setup-02-import.sql"
+    errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
+  else
+    # TODO: figure out how s3 creds can be on standalone
+    runQuery "setup-02-lame.sql"
+    errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
+  fi
+
+  # handle s3 load error
+  if [[ $errCount -gt 0 ]]; then
+    echo "Error: failure during data load"
+    exit 4
+  fi
  
   message "$SCHEMA: Creating indexes"
   runQuery "setup-03-indexes.sql"
-  # TODO: check indexes are made
+  if ( ! checkIndexCount $SCHEMA 4 ); then
+     echo "Error: $SCHEMA is missing 4 indices"
+     exit 1
+  fi
  
   message "$SCHEMA: Running compaction"
   runQuery "setup-04-compact.sql"
@@ -464,13 +526,13 @@ fi
 testQry="testQry.sql"
 testOut="testOut.txt"
 echo -e "elapsedtime on;\nselect count(1) from sys.systables;" > $SQLDIR/$testQry
-$SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o $testOut
+$SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o ${LOGDIR}/$testOut
 if [[ "$?" != "0" ]]; then
   echo "Error: sqlshell test failed for $SQLSHELL at $JDBC_URL" 
   exit 3
 elif (( $VERBOSE )); then
   echo "Test query results follow"
-  cat $testOut
+  cat ${LOGDIR}/$testOut
   echo
 fi
 
@@ -487,7 +549,7 @@ testErr=$(checkQueryError $testOut)
 if [[ $testErr -ne  0 ]]; then
    echo "Error: runQuery had errors on testQry"
   if (( $VERBOSE )); then
-    cat $LOGDIR/${testQry//sql/out}
+    cat $testOut
     echo
   fi
   exit 3
@@ -529,14 +591,12 @@ if [[ "$BENCH" == "TPCH" ]]; then
       LOGDIR="$BASEDIR/logs/$SCHEMA-queries-$START-iter$i"
       mkdir -p $LOGDIR
       debug running $SCHEMA iter$i
-      rv=$(runTPCHQueries $SCHEMA)
-      echo $rv
+      runTPCHQueries $SCHEMA
+      checkOneTPCH $SCHEMA
     done
     
     # TODO: behavior: if iterations > 1, provide avg/min/max/stddev
-    checkOneTPCH $SCHEMA
   fi
-
 
   # possibly send email?
   # possibly write to a table?
