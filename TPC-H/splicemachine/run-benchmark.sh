@@ -586,13 +586,24 @@ if [[ "$BENCH" == "TPCH" ]]; then
     checkOneTPCH $SCHEMA
 
   else # many iterations
-    for (( i=1; i<=$ITER; i++ )); do
+
+    local -i i=1
+    while [ $i -le $ITER ]; do
       loopStart=$(now)
+
+      if (( $i == $ITER )); then
+        echo ${results[$i]}
+      else
+        echo -ne "${results[$i]}, "
+      fi
+
       LOGDIR="$BASEDIR/logs/$SCHEMA-queries-$START-iter$i"
       mkdir -p $LOGDIR
-      debug running $SCHEMA iter$i
+      debug running $SCHEMA iter$i at $loopStart
       runTPCHQueries $SCHEMA
       checkOneTPCH $SCHEMA
+
+      let i++
     done
     
     # TODO: behavior: if iterations > 1, provide avg/min/max/stddev
