@@ -132,9 +132,9 @@ if [[ "$HOST" == "" && "$URL" == "" ]]; then
 elif [[ "$HOST" != "" ]]; then
   HOSTORURL="-h $HOST" 
 else
-  HOSTORURL="-u $URL" 
+  HOSTORURL="-U ${URL}" 
 fi
-debug host-or-url is $HOSTORURL
+debug host-or-url is ${HOSTORURL}
 
 # TOODO: figure out if URL is 'well-formed'
 
@@ -197,11 +197,11 @@ runQuery() {
   local outfile=${LOGDIR}/${1//sql/out}
 
   if [ "$TIMEOUT" -eq 0 ]; then
-    $SQLSHELL -q $HOSTORURL -f $queryfile -o $outfile 
+    $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
     return $?
   else
     # TOODO: test non-zero timeout
-	$SQLSHELL -q $HOSTORURL -f $queryfile -o $outfile &
+	$SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile &
         echo
 
 	# wait until job finishes or timeout which ever comes first
@@ -220,7 +220,7 @@ runQuery() {
 	ps --no-headers ${qpid} >/dev/null
 	jobrunning=$?
 	if [ "${jobrunning}" -eq 0 ]; then
-		$SQLSHELL -q $HOSTORURL <<< "call SYSCS_UTIL.SYSCS_KILL_ALL_STATEMENTS();"
+		$SQLSHELL -q ${HOSTORURL} <<< "call SYSCS_UTIL.SYSCS_KILL_ALL_STATEMENTS();"
 	fi
   fi
 }
@@ -264,21 +264,23 @@ checkTPCHSchema() {
    #echo "select count(1) from sys.sysschemas where schemaname = '${schema}';" 
 
    local query="checkSchema.sql"
+   local -i expected=8
    echo "select count(1) from sys.systables t join sys.sysschemas s on s.SCHEMAID=t.SCHEMAID and s.SCHEMANAME='${schema}';" > $SQLDIR/$query
    runQuery $query
    countResults $LOGDIR/${query/sql/out}
    local -i count=$?
 
    debug "CheckTPCHSchema: found $count from $query"
-   if [[ "$count" -ne 8 ]]; then
-     debug bad TPCH schema
+   if [[ "$count" -ne "$expected" ]]; then
+     debug Schema $schema: incorrect table count $count
      return 1
    else
-     debug good TPCH schema
+     debug Schema $schema has $expected tables
      return 0
    fi
 
-
+   # TODO: check that indexes are present
+   # TODO: check that non-zero statistics are present
    # TODO: check that all the tables in setup-06-count.out  have the 'right' counts
 
 }
@@ -317,15 +319,30 @@ createTPCHdatabase() {
   fillTemplate "setup-06-count.sql" $schema $scale
 
   # create the actual database
+  message "$SCHEMA: Creating tables"
   runQuery "setup-01-tables.sql"
-  runQuery "setup-02-lame.sql"
-  runQuery "setup-03-indexes.sql"
-  runQuery "setup-04-compact.sql"
-  runQuery "setup-05-stats.sql"
-  runQuery "setup-06-count.sql"
+  # TODO: check table was made
 
+  message "$SCHEMA: Loading data"
+  runQuery "setup-02-lame.sql"
   # TODO: handle s3 load error
-  echo "check the db please"
+ 
+  message "$SCHEMA: Creating indexes"
+  runQuery "setup-03-indexes.sql"
+  # TODO: check indexes are made
+ 
+  message "$SCHEMA: Running compaction"
+  runQuery "setup-04-compact.sql"
+  # TODO: check for compaction error
+
+  message "$SCHEMA: Gather stats "
+  runQuery "setup-05-stats.sql"
+  # TODO: check stats ran
+
+  message "$SCHEMA: Counting tables"
+  runQuery "setup-06-count.sql"
+  # TODO: check the counts
+
 }
 
 # check counts
@@ -343,6 +360,10 @@ genTPCHqueries() {
 runTPCHQueries() {
   local schema=$1
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
+    if [[ "$i" == "20" ]]; then
+       message "skipping TPCH query 20"
+       continue
+    fi
     message "Running TPCH query $i at scale $SCALE"
     runQuery "query-$i.sql"
   done
@@ -351,43 +372,78 @@ runTPCHQueries() {
 # check a query output for error
 checkQueryError() {
   local outfile=$1
-  local -i errCount=$(grep ERROR $outfile | wc -l)
+  local -i errCount=$(grep ERROR $outfile 2>/dev/null | wc -l )
 
-  debug checkQueryError: error count is $errCount
+  #debug checkQueryError: error count is $errCount
   echo $errCount
 }
 
 # check a query output for execution time
 checkQueryTime() {
   local outfile=$1
-  local execTime=$(grep "ELAPSED TIME" $outfile | awk '{print $4,$5}')
+  local execTime=$(grep "ELAPSED TIME" $outfile 2>/dev/null | awk '{print $4,$5}' )
 
-  debug checkQueryTime: exec time is $execTime
+  #debug checkQueryTime: exec time is $execTime
   echo $execTime
 }
 
 checkOneTPCH() {
   local schema=$1
+  local -a results
+ 
+  local j=0
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
+    let j++
     local -i errCount=$(checkQueryError "${LOGDIR}/query-$i.out")
-    debug checkOneTPCH errCount $errCount
+    #debug checkOneTPCH errCount $errCount
     if [[ $errCount -eq 0 ]]; then
       local time=$(checkQueryTime "${LOGDIR}/query-$i.out")
       if [[ "$time" != "" ]]; then
-        echo "$SCHEMA query-$i.sql took $time"
+        message "$SCHEMA query-$i.sql took $time"
+        results[$j]=$(echo $time|awk '{print$1}')
       else
-        echo "$SCHEMA query-$i.sql no errors and no time"
+        message "$SCHEMA query-$i.sql no errors and no time"
+        results[$j]="Nan"
       fi
     else
-      echo "$SCHEMA query-$i.sql had $errCount errors"
+      message "$SCHEMA query-$i.sql had $errCount errors"
+      results[$j]="Err"
     fi
   done
+
+  # loop over the variable set of results
+  echo -n "$SCHEMA results: "
+  local -i k=1
+  while [ $k -le $j ]; do
+    if (( $k == $j )); then
+      echo ${results[$k]}
+    else 
+      echo -ne "${results[$k]}, "
+    fi
+    let k++
+  done
+
 }
 
 # TODO: iterate over many results
-# checkTPCHOutput() {
+# checkTPCHOutputs() {
 # compute min/max/avg/stddev
+# TODO: consider global results 2-dimensional array?
+# RESULTS[$i][0] = name
+# RESULTS[$i][1] = count
+# RESULTS[$i][2] = sum
+# RESULTS[$i][3] = sumsq
 # }
+
+# TODO: output result as many-row csv file
+# test_run.csv
+#Time	Query	Iteration	Status	Error code	Error msg	Elapsed
+
+# TODO: consider pushing to s3
+# s3:splice-performance/ {run,test_run,test_cluster}
+# possibly put in a new place to start
+
+# TOOD: consider getting a unique id for build run from groovy
 
 #============
 # Sanity Tests
@@ -408,7 +464,7 @@ fi
 testQry="testQry.sql"
 testOut="testOut.txt"
 echo -e "elapsedtime on;\nselect count(1) from sys.systables;" > $SQLDIR/$testQry
-$SQLSHELL -q $HOSTORURL -f $SQLDIR/$testQry -o $testOut
+$SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o $testOut
 if [[ "$?" != "0" ]]; then
   echo "Error: sqlshell test failed for $SQLSHELL at $JDBC_URL" 
   exit 3
@@ -418,12 +474,23 @@ elif (( $VERBOSE )); then
   echo
 fi
 
-debug now test runQuery subroutine
+debug check that runQuery succeeds
 runQuery $testQry
-#TODO: check that runQuery succeeded
-if (( $VERBOSE )); then
-  cat $LOGDIR/${testQry//sql/out}
-  echo
+testOut="$LOGDIR/${testQry//sql/out}"
+if [[ ! -f $testOut ]]; then
+   echo "Error: runQuery did not produce output!"
+   exit 3
+fi
+
+# check for Errors on testQry
+testErr=$(checkQueryError $testOut)
+if [[ $testErr -ne  0 ]]; then
+   echo "Error: runQuery had errors on testQry"
+  if (( $VERBOSE )); then
+    cat $LOGDIR/${testQry//sql/out}
+    echo
+  fi
+  exit 3
 fi
 
 #============
@@ -474,9 +541,11 @@ if [[ "$BENCH" == "TPCH" ]]; then
   # possibly send email?
   # possibly write to a table?
 
+  # TODO: document docker.for.mac.localhost
+
 elif [[ "$BENCH" == "TPCC" ]]; then
 
-  # TODO: handle benchmark other than TPCH
+  # TOODO: handle benchmark other than TPCH
   echo "Sorry, TPCC is not yet implemented"
 
 fi
