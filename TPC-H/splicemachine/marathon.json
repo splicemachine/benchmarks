@@ -1,0 +1,39 @@
+{
+  "id": "/benchmark",
+  "cmd": null,
+  "args": [ "-D", "-V", "-s", "10", "-i", "3",
+            "-L", "/mnt/mesos/sandbox/",
+            "-u", "jdbc:splice://murraysaccount-tpch1g10g100g.splicemachine-dev.io:1527/splicedb;ssl=basic;user=splice;password=admin" ],
+  "cpus": 0.2,
+  "mem": 256,
+  "disk": 250,
+  "instances": 1,
+  "constraints": [["tasktype", "LIKE", "privateagent"]],
+  "container": {
+    "type": "DOCKER",
+    "volumes": [
+      {
+        "containerPath": "/opt",
+        "hostPath": "/mnt/opt",
+        "mode": "RO"
+      }
+    ],
+    "docker": {
+      "image": "splicemachine/benchmark:0.1.8",
+      "network": "HOST",
+      "portMappings": [],
+      "privileged": false,
+      "parameters": [],
+      "forcePullImage": true
+    }
+  },
+  "env": {
+    "DOCKER_CONFIG": "/etc/mesosphere/docker_credentials",
+    "TERM": "xterm"
+  },
+  "portDefinitions": [],
+  "upgradeStrategy": {
+    "minimumHealthCapacity": 0,
+    "maximumOverCapacity": 0
+  }
+}

@@ -3,7 +3,7 @@
 # Author: Murray Brown <mbrown@splicemachine.com>
 
 usage() {
-  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-l label] [-n name] [-i iterations] [-t timeout] [-D] [-V] [-H]"
+  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-D] [-V] [-H]"
 }
 
 help() {
@@ -13,6 +13,7 @@ help() {
   echo -e "\t -u url\t\t a jdbc url for your database. One of host or url is required."
   echo -e "\t -b benchmark \t\t a benchmark to run. (default: TPCH) {valid: TPCH, TPCC}"
   echo -e "\t -s scale \t\t scale of (default: 1) {valid scales 1, 10, 100, 1000}"
+  echo -e "\t -L logdir \t\t a directory to base the logs (default: /logs)"
   echo -e "\t -l label \t\t a label to identify the output (default: scale and date)"
   echo -e "\t -n name \t\t a suffix to add to a schema name"
   echo -e "\t -i iterations \t\t how many iterations to run (default: 1)"
@@ -21,8 +22,6 @@ help() {
   echo -e "\t -V verbose mode \t prints helpful messaging"
   echo -e "\t -H help \t\t prints this help"
 }
-
-BASEDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 debug() {
   local msg="$*"
@@ -40,6 +39,17 @@ message() {
   fi
 }
 
+# ensure a path ends in /
+fixPath() {
+  local path=$1
+
+  local dirlen=${#path}
+  local lastchar=${path:dirlen-1:1}
+  [[ $lastchar != "/" ]] && path="${path}/";
+
+  echo $path
+}
+
 now() {
   date +%Y%m%d-%H%M
 }
@@ -52,16 +62,17 @@ URL=""
 BENCH="TPCH"
 INTERACTIVE=0
 SCALE=1
+LOGBASE=""
 LABEL=""
 SUFFIX=""
-ITER=1
-TIMEOUT=0
+declare -i ITER=0
+declare -i TIMEOUT=0
 DEBUG=0
 VERBOSE=0
 
 # Option Parsing
 OPTIND=1
-while getopts ":h:u:b:s:l:n:i:t:DVH" opt; do
+while getopts ":h:u:b:s:L:l:n:i:t:DVH" opt; do
   case $opt in
     h) HOST=$OPTARG
        ;;
@@ -70,6 +81,8 @@ while getopts ":h:u:b:s:l:n:i:t:DVH" opt; do
     b) BENCH=$OPTARG
        ;;
     s) SCALE=$OPTARG
+       ;;
+    L) LOGBASE=$OPTARG
        ;;
     l) LABEL=$OPTARG
        ;;
@@ -100,25 +113,25 @@ done
 shift $((OPTIND-1))
 
 # concoct schema name from inputs
-SCHEMA="$BENCH$SCALE$SUFFIX"
+SCHEMA="${BENCH}${SCALE}${SUFFIX}"
+
+# setup BASEDIR
+BASEDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+BASEDIR=$(fixPath $BASEDIR)
+debug basedir ends in / $BASEDIR
 
 # query directory
-SQLDIR="$BASEDIR/$SCHEMA-queries"
+SQLDIR="${BASEDIR}${SCHEMA}-queries"
 if [[ ! -d $SQLDIR ]]; then
+  debug making orig sqldir $SQLDIR
   mkdir -p $SQLDIR
-fi
-
-# log output directory
-LOGDIR="$BASEDIR/logs/$SCHEMA-queries-$START"
-if [[ ! -d $LOGDIR ]]; then
-  mkdir -p $LOGDIR
 fi
 
 # TOODO: implement specific query selection
 TPCHMIN=1
 TPCHMAX=22
 
-# TOODO: implement validation checks
+# TOODO: implement TPCH validation checks
 # TOODO: implement actual benchmark
 
 #============
@@ -153,6 +166,25 @@ if [[ "$BENCH" == "TPCH" && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "
    exit 2
 fi
 
+# optionally start log directory at a base 
+# e.g. /mnt/mesos/sandbox for docker
+if [[ "$LOGBASE" != ""] ]]; then
+   LOGBASE=$(fixPath $LOGBASE)
+   if [[ ! -d $LOGBASE ]]; then 
+      echo "Error: specified logdir does not exist: $LOGBASE"
+      exit 2
+   fi
+   LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$START"
+else
+   LOGBASE=$BASEDIR
+   LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$START"
+fi
+
+if [[ ! -d $LOGDIR ]]; then
+  debug making orig logdir $LOGDIR
+  mkdir -p $LOGDIR
+fi
+
 #  check if label is blank else generate it
 if [[ "$LABEL" == "" ]]; then
   LABEL="$BENCH-$SCALE benchmark run started $START"
@@ -179,11 +211,11 @@ case $TIMEOUT in
   ;;
 esac
 
-if [[ $TIMEOUT != 0 ]]; then
-   # TOODO: test non-zero timeout handling
-   echo "umm... i have not tested that yet"
-   exit 127
-fi
+#if [[ $TIMEOUT != 0 ]]; then
+   ## TOODO: test non-zero timeout handling
+   #echo "umm... i have not tested that yet"
+   #exit 127
+#fi
 
 debug exiting arg checks
 
@@ -201,15 +233,14 @@ runQuery() {
     $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
     return $?
   else
-    # TOODO: test non-zero timeout
 	$SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile &
-        echo
+        debug backgrounded shell
 
 	# wait until job finishes or timeout which ever comes first
 	qpid=$(jobs -p)
 	local queryruntime=0
-	while [ "${queryruntime}" -le "${timeout}" ]; do
-		ps --no-headers ${qpid} >/dev/null
+	while [ "${queryruntime}" -le "${TIMEOUT}" ]; do
+		ps ${qpid} >/dev/null
 		local jobstatus=$?
 		if [[ ${jobstatus} -eq 0 ]]; then
 			((queryruntime++))
@@ -218,7 +249,7 @@ runQuery() {
 		fi
 		sleep 1
 	done
-	ps --no-headers ${qpid} >/dev/null
+	ps ${qpid} >/dev/null
 	jobrunning=$?
 	if [[ ${jobrunning} -eq 0 ]]; then
 		$SQLSHELL -q ${HOSTORURL} <<< "call SYSCS_UTIL.SYSCS_KILL_ALL_STATEMENTS();"
@@ -232,7 +263,7 @@ countResults() {
 
   #if [[ ! -f $outfile ]]; then
   #  debug "Error: countResults: no such file $outfile"
-  #   return 0
+  #  return 0
   #if
 
   local -i count
@@ -255,7 +286,7 @@ addSchemaToQuery() {
   local output="$SQLDIR/$file"
   
   echo "SET SCHEMA ${schema};" > $output
-  cat $BASEDIR/templates/$file >> $output
+  cat ${BASEDIR}templates/$file >> $output
 
 }
 
@@ -304,6 +335,7 @@ checkIndexCount() {
 # validate that a TPCH schema has the right tables
 checkTPCHSchema() {
    local schema=$1
+
    # TODO: ensure schema
    #echo "select count(1) from sys.sysschemas where schemaname = '${schema}';" 
    #local query="checkSchema.sql"
@@ -336,13 +368,14 @@ fillTemplate() {
   local schema=$2
   local scale=$3
 
-  local input="$BASEDIR/templates/$file"
+  local input="${BASEDIR}templates/$file"
   local output="$SQLDIR/$file"
 
   if [[ ! -f $input ]]; then
     debug "Error: there is no template $file"
     return 1
   fi
+  debug copying input $input to output $output
   cp $input $output
   sed -i '' -e "s/##SCHEMA##/$schema/g"  $output
   sed -i '' -e "s/##SCALE##/$scale/g"   $output
@@ -413,21 +446,27 @@ createTPCHdatabase() {
 # generate query files for this schema
 genTPCHqueries() {
   local schema=$1
+  local i
+
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
-    debug adding $schema for $i
-    addSchemaToQuery $schema "query-$i.sql" 
+    debug adding $schema for ${i}
+    addSchemaToQuery $schema "query-${i}.sql" 
   done
 }
 
 runTPCHQueries() {
   local schema=$1
+  local i
+
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
-    if [[ "$i" == "20" ]]; then
+    if [ "${i}" = "20" ]; then
        message "skipping TPCH query 20"
        continue
     fi
-    message "Running TPCH query $i at scale $SCALE"
-    runQuery "query-$i.sql"
+    message "Running TPCH query ${i} at scale $SCALE"
+    runQuery "query-${i}.sql"
+    # temporary hack
+    #echo "no data" > ${LOGDIR}/query-${i}.out
   done
 }
 
@@ -449,32 +488,39 @@ checkQueryTime() {
   echo $execTime
 }
 
-checkOneTPCH() {
+checkTPCHresults() {
   local schema=$1
+  local iter=$2
+
   local -a results
- 
+
+  local i 
   local j=0
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
     let j++
-    local -i errCount=$(checkQueryError "${LOGDIR}/query-$i.out")
+    local -i errCount=$(checkQueryError "${LOGDIR}/query-${i}.out")
     #debug checkOneTPCH errCount $errCount
     if [[ $errCount -eq 0 ]]; then
-      local time=$(checkQueryTime "${LOGDIR}/query-$i.out")
+      local time=$(checkQueryTime "${LOGDIR}/query-${i}.out")
       if [[ "$time" != "" ]]; then
-        message "$SCHEMA query-$i.sql took $time"
-        results[$j]=$(echo $time|awk '{print$1}')
+        message "$SCHEMA query-${i}.sql took $time"
+        results[$j]=$(echo $time|awk '{print $1}')
       else
-        message "$SCHEMA query-$i.sql no errors and no time"
+        message "$SCHEMA query-${i}.sql no errors and no time"
         results[$j]="Nan"
       fi
     else
-      message "$SCHEMA query-$i.sql had $errCount errors"
+      message "$SCHEMA query-${i}.sql had $errCount errors"
       results[$j]="Err"
     fi
   done
 
   # loop over the variable set of results
-  echo -n "$SCHEMA results: "
+  echo -n "$SCHEMA results"
+  if [[ "$iter" != "0" ]]; then
+     echo -n " for run $iter"
+  fi
+  echo -n ": "
   local -i k=1
   while [ $k -le $j ]; do
     if (( $k == $j )); then
@@ -510,8 +556,8 @@ checkOneTPCH() {
 #============
 # Sanity Tests
 
-if [[ ! -d $BASEDIR/templates ]]; then
-  echo "Error: $BASEDIR/templates must be present"
+if [[ ! -d ${BASEDIR}templates ]]; then
+  echo "Error: ${BASEDIR}templates must be present"
   exit 2
 fi
 
@@ -578,30 +624,25 @@ if [[ "$BENCH" == "TPCH" ]]; then
   genTPCHqueries $SCHEMA
 
   # now start running
-  if [[ "$ITER" == "1" ]]; then
+  if [[ $ITER -le 1 ]]; then
     echo "Handle single run"
     runTPCHQueries $SCHEMA
 
     # output single results
-    checkOneTPCH $SCHEMA
+    checkTPCHresults $SCHEMA 0
 
   else # many iterations
 
-    local -i i=1
+    declare -i i=1
     while [ $i -le $ITER ]; do
       loopStart=$(now)
 
-      if (( $i == $ITER )); then
-        echo ${results[$i]}
-      else
-        echo -ne "${results[$i]}, "
-      fi
-
-      LOGDIR="$BASEDIR/logs/$SCHEMA-queries-$START-iter$i"
+      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$START-iter$i"
       mkdir -p $LOGDIR
+
       debug running $SCHEMA iter$i at $loopStart
       runTPCHQueries $SCHEMA
-      checkOneTPCH $SCHEMA
+      checkTPCHresults $SCHEMA $i
 
       let i++
     done
