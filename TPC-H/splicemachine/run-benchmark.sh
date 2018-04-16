@@ -168,7 +168,7 @@ fi
 
 # optionally start log directory at a base 
 # e.g. /mnt/mesos/sandbox for docker
-if [[ "$LOGBASE" != ""] ]]; then
+if [[ "$LOGBASE" != "" ]]; then
    LOGBASE=$(fixPath $LOGBASE)
    if [[ ! -d $LOGBASE ]]; then 
       echo "Error: specified logdir does not exist: $LOGBASE"
@@ -224,37 +224,64 @@ debug exiting arg checks
 
 # TOODO: global or local file location handling?
 
+
+# use sqlshell find job id
+getJobIds() {
+  local outfile="./getJobId.out"
+
+  # TODO: check if there are ij options for 'batch mode' or 'single line' or somethign
+  # perhaps: ij.maximumDisplayWidth
+  $SQLSHELL -q $HOSTORURL -o $outfile <<< "call syscs_util.SYSCS_GET_RUNNING_OPERATIONS();"
+
+  local jobid=$(grep -vE "^$|UUID|SYSCS_GET_RUNNING_OPERATIONS|rows selected|^splice>|[-][-][-]*|^SPLICE|current connection" \
+      $outfile | awk '{print $1}')
+  echo $jobid
+}
+
+killJob() {
+  local jobid=$1
+
+  echo killing $jobid
+  $SQLSHELL -q $HOSTORURL -o /dev/null <<< "call syscs_util.SYSCS_KILL_OPERATION('${jobid}');" 
+}
+
 # takes a single argument -- the name of the query file, prepends SQLDIR
 runQuery() {
-  local queryfile=${SQLDIR}/${1}
-  local outfile=${LOGDIR}/${1//sql/out}
+   local queryfile=${SQLDIR}/${1}
+   local outfile=${LOGDIR}/${1//sql/out}
 
-  if [[ $TIMEOUT -eq 0 ]]; then
-    $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
-    return $?
-  else
-	$SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile &
-        debug backgrounded shell
+   if [[ $TIMEOUT -eq 0 ]]; then
+      $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
+      return $?
+   else
+      $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile &
+      debug backgrounded shell
 
-	# wait until job finishes or timeout which ever comes first
-	qpid=$(jobs -p)
-	local queryruntime=0
-	while [ "${queryruntime}" -le "${TIMEOUT}" ]; do
-		ps ${qpid} >/dev/null
-		local jobstatus=$?
-		if [[ ${jobstatus} -eq 0 ]]; then
-			((queryruntime++))
-		else
-			break
-		fi
-		sleep 1
-	done
-	ps ${qpid} >/dev/null
-	jobrunning=$?
-	if [[ ${jobrunning} -eq 0 ]]; then
-		$SQLSHELL -q ${HOSTORURL} <<< "call SYSCS_UTIL.SYSCS_KILL_ALL_STATEMENTS();"
-	fi
-  fi
+      # wait until job finishes or timeout whichever comes first
+      qpid=$(jobs -p)
+      local queryruntime=0
+      while [ "${queryruntime}" -le "${TIMEOUT}" ]; do
+         ps ${qpid} >/dev/null
+         local jobstatus=$?
+         if [[ ${jobstatus} -eq 0 ]]; then
+            ((queryruntime++))
+         else
+            break
+         fi
+         sleep 1
+      done
+      ps ${qpid} >/dev/null
+      jobrunning=$?
+      if [[ ${jobrunning} -eq 0 ]]; then
+         debug "decided to kill job at time $queryruntime"
+         local jobs=$(getJobIds)
+         debug "found job(s) $jobs"
+         local id
+         for id in $jobs; do
+           killJob $id
+         done
+      fi
+   fi
 }
 
 # only works on a 'one count' query outputfile
@@ -358,8 +385,9 @@ checkTPCHSchema() {
 
    # TODO: check that non-zero statistics are present
    # "select sum(stats) from sys.statistics where schemaname = '${schema}';"
-   # TODO: check that all the tables in setup-06-count.out  have the 'right' counts
 
+   # TODO: check that all the tables in setup-06-count.out  have the 'right' counts
+   # run count?  validate against numbers?
 }
 
 # substitution function for templated queries
@@ -547,11 +575,11 @@ checkTPCHresults() {
 # test_run.csv
 #Time	Query	Iteration	Status	Error code	Error msg	Elapsed
 
-# TODO: consider pushing to s3
+# TOODO: consider pushing to s3
 # s3:splice-performance/ {run,test_run,test_cluster}
 # possibly put in a new place to start
 
-# TOOD: consider getting a unique id for build run from groovy
+# TOODO: consider getting a unique id for build run from groovy script in jenkins
 
 #============
 # Sanity Tests
