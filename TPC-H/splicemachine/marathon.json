@@ -1,9 +1,9 @@
 {
   "id": "/benchmark",
   "cmd": null,
-  "args": [ "-D", "-V", "-s", "10", "-i", "3",
+  "args": [ "-D", "-V", "-s", "100", "-i", "3",
             "-L", "/mnt/mesos/sandbox/",
-            "-u", "jdbc:splice://murraysaccount-tpch1g10g100g.splicemachine-dev.io:1527/splicedb;ssl=basic;user=splice;password=admin" ],
+            "-u", "jdbc:splice://hregion-0-node.murraysaccount-tpch1g10g100g-a0fb840a0b.mesos:1527/splicedb;user=splice;password=admin" ],
   "cpus": 0.2,
   "mem": 256,
   "disk": 250,
@@ -19,7 +19,7 @@
       }
     ],
     "docker": {
-      "image": "splicemachine/benchmark:0.1.8",
+      "image": "splicemachine/benchmark:0.1.9",
       "network": "HOST",
       "portMappings": [],
       "privileged": false,
