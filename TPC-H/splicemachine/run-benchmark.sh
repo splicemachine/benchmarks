@@ -159,11 +159,22 @@ if [[ "$BENCH" != "TPCH" && "$BENCH" != "TPCC" ]]; then
    exit 2
 fi
 
+# fix for query 11 needing scale factor
+QRY11="0.0001000000" # defaults to tpch1g
+
 # check for only valid scales
 if [[ "$BENCH" == "TPCH" && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" ]]; then
    echo "Error: scale of $SCALE is not supported for $BENCH!"
    usage
    exit 2
+elif [[ "$SCALE" == "1" ]]; then
+  QRY11="0.0001000000"
+elif [[ "$SCALE" == "10" ]]; then
+  QRY11="0.0000100000"
+elif [[ "$SCALE" == "100" ]]; then
+  QRY11="0.0000010000"
+elif [[ "$SCALE" == "1000" ]]; then
+  QRY11="0.0000001000"
 fi
 
 # optionally start log directory at a base 
@@ -306,17 +317,6 @@ countResults() {
 
 }
 
-# put the schema in front
-addSchemaToQuery() {
-  local schema=$1
-  local file=$2
-  local output="$SQLDIR/$file"
-  
-  echo "SET SCHEMA ${schema};" > $output
-  cat ${BASEDIR}templates/$file >> $output
-
-}
-
 # count tables in a schema compare to expect
 checkTableCount() {
    local schema=$1
@@ -404,9 +404,12 @@ fillTemplate() {
     return 1
   fi
   debug copying input $input to output $output
-  cp $input $output
-  sed -i '' -e "s/##SCHEMA##/$schema/g"  $output
-  sed -i '' -e "s/##SCALE##/$scale/g"   $output
+  cat $input | sed \
+   -e "s/##SCHEMA##/$schema/" \
+   -e "s/##SCALE##/$scale/" \
+   -e "s/##QRY11##/${QRY11}/" \
+   > $output
+
 }
 
 # create and load the TPCH database for this scale
@@ -435,7 +438,7 @@ createTPCHdatabase() {
   if [[ "$HOST" != "" ]]; then
     runQuery "setup-02-import.sql"
     errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
-  else
+  else # as in jdbc URL
     # TODO: figure out how s3 creds can be on standalone
     runQuery "setup-02-lame.sql"
     errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
@@ -477,8 +480,8 @@ genTPCHqueries() {
   local i
 
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
-    debug adding $schema for ${i}
-    addSchemaToQuery $schema "query-${i}.sql" 
+    #debug adding $schema for ${i}
+    fillTemplate "query-${i}.sql" $schema $scale
   done
 }
 

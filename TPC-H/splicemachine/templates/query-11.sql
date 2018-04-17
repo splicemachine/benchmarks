@@ -1,3 +1,4 @@
+SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 11
 select
@@ -15,7 +16,7 @@ group by
 	ps_partkey having
 		sum(ps_supplycost * ps_availqty) > (
 			select
-				sum(ps_supplycost * ps_availqty) * 0.0000010000
+				sum(ps_supplycost * ps_availqty) * ##QRY11## 
 			from
 				partsupp,
 				supplier,

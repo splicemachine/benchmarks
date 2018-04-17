@@ -1,3 +1,4 @@
+SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 18
 select
