@@ -6,6 +6,7 @@ HOST="localhost"
 PORT="1527"
 USER="splice"
 PASS="admin"
+declare -i WIDTH=128
 SCRIPT=""
 OUTPUT=""
 QUIET=0
@@ -21,12 +22,13 @@ message() {
 
 show_help() {
         echo "Splice Machine SQL client wrapper script"
-        echo "Usage: $(basename $BASH_SOURCE) [-U url] [-h host] [-p port ] [-u username] [-s password] [-f scriptfile]"
+        echo "Usage: $(basename $BASH_SOURCE) [-U url] [-h host] [-p port ] [-u username] [-s password] [-w width] [-f scriptfile] [-o outputfile] [-q]"
         echo -e "\t-U full JDBC URL for Splice Machine database"
         echo -e "\t-h IP address or hostname of Splice Machine (HBase RegionServer)"
         echo -e "\t-p Port which Splice Machine is listening on, defaults to 1527"
         echo -e "\t-u username for Splice Machine database"
         echo -e "\t-s password for Splice Machine database"
+        echo -e "\t-w width of output lines. defaults to 128"
         echo -e "\t-f sql file to be executed"
         echo -e "\t-o file for output"
         echo -e "\t-q quiet mode"
@@ -56,7 +58,7 @@ if [[ "$jversion" < "1.8" ]]; then
 fi
 
 # Process command line args
-while getopts "U:h:p:u:s:f:o:q" opt; do
+while getopts "U:h:p:u:s:w:f:o:q" opt; do
     case $opt in
         U)
             URL="${OPTARG}"
@@ -72,6 +74,9 @@ while getopts "U:h:p:u:s:f:o:q" opt; do
             ;;
         s)
             PASS="${OPTARG}"
+            ;;
+        w)
+            WIDTH="${OPTARG}"
             ;;
         f)
             SCRIPT="${OPTARG}"
@@ -97,6 +102,11 @@ export CLASSPATH="${CURDIR}/lib/*"
 GEN_SYS_ARGS="-Djava.awt.headless=true"
 
 IJ_SYS_ARGS="-Djdbc.drivers=com.splicemachine.db.jdbc.ClientDriver"
+
+# add width via ij.maximumDisplayWidth
+if [[ "$WIDTH" != "128" ]]; then
+   IJ_SYS_ARGS+=" -Dij.maximumDisplayWidth=${WIDTH}"
+fi
 
 # TODO: figure out if OUTPUT directory exists
 if [[ "$OUTPUT" != "" ]]; then
