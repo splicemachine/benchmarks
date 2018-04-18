@@ -435,13 +435,13 @@ createTPCHdatabase() {
 
   message "$SCHEMA: Loading data"
    
-  if [[ "$HOST" != "" ]]; then
-    runQuery "setup-02-import.sql"
-    errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
-  else # as in jdbc URL
+  if [[ "$HOST" != "" ]]; then # running localhost
     # TODO: figure out how s3 creds can be on standalone
     runQuery "setup-02-lame.sql"
     errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
+  else # as in jdbc URL, assume service
+    runQuery "setup-02-import.sql"
+    errCount=$(checkQueryError "${LOGDIR}/setup-02-import.out")
   fi
 
   # handle s3 load error
