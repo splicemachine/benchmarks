@@ -16,7 +16,7 @@ message() {
    local msg="$*"
 
    if (( ! $QUIET )); then
-      echo -en $msg
+      echo -e $msg
    fi
 }
 
@@ -33,29 +33,6 @@ show_help() {
         echo -e "\t-o file for output"
         echo -e "\t-q quiet mode"
 }
-
-#TODO: add width via ij.maximumDisplayWidth
-
-# check for jdk1.8 and exit if not found
-if type -p java; then
-    #message found java executable in PATH
-    _java=java
-elif [[ -n "$JAVA_HOME" ]] && [[ -x "$JAVA_HOME/bin/java" ]];  then
-    #message found java executable in JAVA_HOME
-    _java="$JAVA_HOME/bin/java"
-else
-    echo "Error: no java found. $0 requires java."
-    show_help
-    exit 1
-fi
-
-jversion=$("$_java" -version 2>&1 | awk -F '"' '/version/ {print $2}')
-message java version $jversion
-if [[ "$jversion" < "1.8" ]]; then
-    echo "Error: java is older than 1.8.  $0 requires java 1.8"
-    show_help
-    exit 1
-fi
 
 # Process command line args
 while getopts "U:h:p:u:s:w:f:o:q" opt; do
@@ -93,6 +70,28 @@ while getopts "U:h:p:u:s:w:f:o:q" opt; do
             ;;
     esac
 done
+
+
+# check for jdk1.8 and exit if not found
+if ( type -p java >/dev/null); then
+    #message "found java executable in PATH"
+    _java=java
+elif [[ -n "$JAVA_HOME" ]] && [[ -x "$JAVA_HOME/bin/java" ]];  then
+    #message found java executable in JAVA_HOME
+    _java="$JAVA_HOME/bin/java"
+else
+    echo "Error: no java found. $0 requires java."
+    show_help
+    exit 1
+fi
+
+jversion=$("$_java" -version 2>&1 | awk -F '"' '/version/ {print $2}')
+message "java version ${jversion}\n"
+if [[ "$jversion" < "1.8" ]]; then
+    echo "Error: java is older than 1.8.  $0 requires java 1.8"
+    show_help
+    exit 1
+fi
 
 #Get the directory where this script resides
 CURDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
