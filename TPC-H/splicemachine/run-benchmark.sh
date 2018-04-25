@@ -3,7 +3,7 @@
 # Author: Murray Brown <mbrown@splicemachine.com>
 
 usage() {
-  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-D] [-V] [-H]"
+  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-S set] [-m mode] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-D] [-V] [-H]"
 }
 
 help() {
@@ -13,6 +13,8 @@ help() {
   echo -e "\t -u url\t\t a jdbc url for your database. One of host or url is required."
   echo -e "\t -b benchmark \t\t a benchmark to run. (default: TPCH) {valid: TPCH, TPCC}"
   echo -e "\t -s scale \t\t scale of (default: 1) {valid scales 1, 10, 100, 1000}"
+  echo -e "\t -S set \t\t which query set to run (default: good) {valid: good, all, errors}"
+  echo -e "\t -m mode \t\t mode for setup (default: bulk) {valid: bulk or linear}"
   echo -e "\t -L logdir \t\t a directory to base the logs (default: /logs)"
   echo -e "\t -l label \t\t a label to identify the output (default: scale and date)"
   echo -e "\t -n name \t\t a suffix to add to a schema name"
@@ -62,6 +64,8 @@ URL=""
 BENCH="TPCH"
 INTERACTIVE=0
 SCALE=1
+SET="good"
+MODE="bulk"
 LOGBASE=""
 LABEL=""
 SUFFIX=""
@@ -72,7 +76,7 @@ VERBOSE=0
 
 # Option Parsing
 OPTIND=1
-while getopts ":h:u:b:s:L:l:n:i:t:DVH" opt; do
+while getopts ":h:u:b:s:S:m:L:l:n:i:t:DVH" opt; do
   case $opt in
     h) HOST=$OPTARG
        ;;
@@ -81,6 +85,10 @@ while getopts ":h:u:b:s:L:l:n:i:t:DVH" opt; do
     b) BENCH=$OPTARG
        ;;
     s) SCALE=$OPTARG
+       ;;
+    S) SET=$OPTARG
+       ;;
+    m) MODE=$OPTARG
        ;;
     L) LOGBASE=$OPTARG
        ;;
@@ -127,11 +135,7 @@ if [[ ! -d $SQLDIR ]]; then
   mkdir -p $SQLDIR
 fi
 
-# TOODO: implement specific query selection
-TPCHMIN=1
-TPCHMAX=22
 
-# TOODO: implement TPCH validation checks
 # TOODO: implement actual benchmark
 
 #============
@@ -159,7 +163,8 @@ if [[ "$BENCH" != "TPCH" && "$BENCH" != "TPCC" ]]; then
    exit 2
 fi
 
-# fix for query 11 needing scale factor
+# fix for TPCH query 11 needing scale factor constant
+# TOODO: write a routine for this calculation if it is reusable
 QRY11="0.0001000000" # defaults to tpch1g
 
 # check for only valid scales
@@ -176,6 +181,25 @@ elif [[ "$SCALE" == "100" ]]; then
 elif [[ "$SCALE" == "1000" ]]; then
   QRY11="0.0000001000"
 fi
+
+# check SET (good, all, errors, ??)
+if [[ "$SET" != "good" && "$SET" != "all" && "$SET" != "errors" ]]; then
+   echo "Error: set argument $SET is not supported. Valid values: [ good, all, errors ]"
+   usage
+   exit 2
+fi
+
+# TODO: implement specific query selection using SET
+TPCHMIN=1
+TPCHMAX=22
+
+# check MODE (bulk, linear)
+if [[ "$MODE" != "bulk" && "$MODE" != "linear" ]]; then
+   echo "Error: mode argument $MODE is not supported. Valid values: [ bulk, linear ]"
+   usage
+   exit 2
+fi
+
 
 # optionally start log directory at a base 
 # e.g. /mnt/mesos/sandbox for docker
@@ -235,18 +259,13 @@ debug exiting arg checks
 
 # TOODO: global or local file location handling?
 
-
 # use sqlshell find job id
 getJobIds() {
   local outfile="./getJobId.out"
 
-  # TODO: check if there are ij options for 'batch mode' or 'single line' or somethign
-  # perhaps: ij.maximumDisplayWidth
   $SQLSHELL -q $HOSTORURL -o $outfile <<< "call syscs_util.SYSCS_GET_RUNNING_OPERATIONS();"
 
-  local jobid=$(grep -vE "^$|UUID|SYSCS_GET_RUNNING_OPERATIONS|rows selected|^splice>|[-][-][-]*|^SPLICE|current connection" \
-      $outfile | awk '{print $1}')
-  echo $jobid
+  grep "|SPLICE" $outfile  | grep -v "SYSCS_GET_RUNNING_OPERATIONS" | awk '{print $1}'
 }
 
 killJob() {
@@ -317,6 +336,26 @@ countResults() {
 
 }
 
+# check if a schema exists
+checkSchema() {
+   local schema=$1
+
+   local query="checkSchema.sql"
+   echo "select count(1) from sys.sysschemas s where s.schemaname='${schema}';" > $SQLDIR/$query
+   runQuery $query
+   countResults $LOGDIR/${query/sql/out}
+   local -i count=$?
+
+   debug "CheckSchema: found $count from $query"
+   if [[ "$count" -ne "1" ]]; then
+     debug Schema $schema: not present
+     return 1
+   else
+     debug Schema $schema is present
+     return 0
+   fi
+}
+
 # count tables in a schema compare to expect
 checkTableCount() {
    local schema=$1
@@ -359,13 +398,26 @@ checkIndexCount() {
    fi
 } 
 
-# validate that a TPCH schema has the right tables
-checkTPCHSchema() {
-   local schema=$1
+checkTPCHTablesCounts() {
+   local scale=$1
+   local outfile=$2
 
-   # TODO: ensure schema
-   #echo "select count(1) from sys.sysschemas where schemaname = '${schema}';" 
-   #local query="checkSchema.sql"
+   # TODO: implement getting counts from outfile and comparing
+
+   return 0
+
+}
+
+
+# validate that a TPCH schema has the right tables
+validateTPCHSchema() {
+   local schema=$1
+   local scale=$2
+
+   # check schema exists
+   if ( ! checkSchema $schema ); then
+      return 1
+   fi
 
    # check that tables are present
    if ( ! checkTableCount $schema 8 ); then
@@ -386,8 +438,15 @@ checkTPCHSchema() {
    # TODO: check that non-zero statistics are present
    # "select sum(stats) from sys.statistics where schemaname = '${schema}';"
 
-   # TODO: check that all the tables in setup-06-count.out  have the 'right' counts
-   # run count?  validate against numbers?
+   # check that all the tables in setup-06-count.out have the 'right' counts
+   if ( ! checkTPCHTablesCounts $scale "setup-06-count.out"); then
+      debug Schema $schema: counts mismatch
+      return 1
+   else
+      debug Schema $schema: counts match
+   fi
+
+   return 0
 }
 
 # substitution function for templated queries
@@ -405,70 +464,111 @@ fillTemplate() {
   fi
   debug copying input $input to output $output
   cat $input | sed \
-   -e "s/##SCHEMA##/$schema/" \
-   -e "s/##SCALE##/$scale/" \
-   -e "s/##QRY11##/${QRY11}/" \
+   -e "s/##SCHEMA##/$schema/g" \
+   -e "s/##SCALE##/$scale/g" \
+   -e "s/##QRY11##/${QRY11}/g" \
    > $output
 
 }
 
 # create and load the TPCH database for this scale
 createTPCHdatabase() {
-  local schema=$1
-  local scale=$2
+   local schema=$1
+   local scale=$2
+   local mode=$3
 
-  local -i errCount
-  debug "Creating TPCH at $schema for scale $scale"
+   local -i errCount
+   debug "Creating TPCH at $schema for scale $scale using mode $mode"
 
-  # duplicate templates and substitute SCHEMA and SCALE etc
-  fillTemplate "setup-01-tables.sql" $schema $scale
-  fillTemplate "setup-02-import.sql" $schema $scale
-  fillTemplate "setup-03-indexes.sql" $schema $scale
-  fillTemplate "setup-04-compact.sql" $schema $scale
-  fillTemplate "setup-05-stats.sql" $schema $scale
-  fillTemplate "setup-06-count.sql" $schema $scale
+   # create the actual database
+   message "$schema: Creating tables"
+   fillTemplate "setup-01-tables.sql" $schema $scale
+   runQuery "setup-01-tables.sql"
+   errCount=$(checkQueryError "${LOGDIR}/setup-01-tables.out")
+   if [[ $errCount -gt 0 ]]; then
+      message "Error: errors seen during table create: $errCount"
+   elif ( ! checkTableCount $schema 8 ); then
+      message "Error making 8 tables on $schema"
+   fi
 
-  # create the actual database
-  message "$SCHEMA: Creating tables"
-  runQuery "setup-01-tables.sql"
-  # TODO: check table was made
+   if [[ "$mode" == "linear" ]]; then
+      fillTemplate "setup-02-linear-import.sql" $schema $scale
+      fillTemplate "setup-03-linear-indexes.sql" $schema $scale
 
-  message "$SCHEMA: Loading data"
-   
-  if [[ "$HOST" != "" ]]; then # running localhost
-    # TODO: figure out how s3 creds can be on standalone
-    runQuery "setup-02-lame.sql"
-    errCount=$(checkQueryError "${LOGDIR}/setup-02-lame.out")
-  else # as in jdbc URL, assume service
-    runQuery "setup-02-import.sql"
-    errCount=$(checkQueryError "${LOGDIR}/setup-02-import.out")
-  fi
+      message "$SCHEMA: Loading data"
+      runQuery "setup-02-linear-import.sql"
+      errCount=$(checkQueryError "${LOGDIR}/setup-02-import.out")
+      if [[ $errCount -gt 0 ]]; then
+        echo "Error: failure during s3 data load. Is your cluster configured to read from s3?"
+        exit 4
+      fi
 
-  # handle s3 load error
-  if [[ $errCount -gt 0 ]]; then
-    echo "Error: failure during data load"
-    exit 4
-  fi
- 
-  message "$SCHEMA: Creating indexes"
-  runQuery "setup-03-indexes.sql"
-  if ( ! checkIndexCount $SCHEMA 4 ); then
-     echo "Error: $SCHEMA is missing 4 indices"
-     exit 1
-  fi
- 
-  message "$SCHEMA: Running compaction"
-  runQuery "setup-04-compact.sql"
-  # TODO: check for compaction error
+      message "$SCHEMA: Creating indexes"
+      runQuery "setup-03-linear-indexes.sql"
 
-  message "$SCHEMA: Gather stats "
-  runQuery "setup-05-stats.sql"
-  # TODO: check stats ran
+      if ( ! checkIndexCount $SCHEMA 4 ); then
+         echo "Error: $SCHEMA is missing 4 indices"
+         exit 4
+      fi
 
-  message "$SCHEMA: Counting tables"
-  runQuery "setup-06-count.sql"
-  # TODO: check the counts
+   else # i.e. mode=bulk
 
+      message "$SCHEMA: Pre-creating indexes"
+      fillTemplate "setup-02-bulk-splitindex.sql" $schema $scale
+      runQuery "setup-02-bulk-splitindex.sql"
+      # TOODO: complete pre-split-points for indexes
+      errCount=$(checkQueryError "${LOGDIR}/setup-02-bulk-splitindex.out")
+
+      if ( ! checkIndexCount $SCHEMA 4 ); then
+         echo "Error: $SCHEMA is missing 4 indices"
+         exit 3
+      fi
+
+      # hfile bulk load from s3 for faster load
+      message "$SCHEMA: Bulk loading data"
+      fillTemplate "setup-03-bulk-import.sql" $schema $scale
+      runQuery "setup-03-bulk-import.sql"
+      errCount=$(checkQueryError "${LOGDIR}/setup-03-bulk-import.out")
+      if [[ $errCount -gt 0 ]]; then
+        echo "Error: failure during s3 data bulkload. Is your cluster configured to read from s3?"
+        exit 4
+      fi
+   fi
+
+   message "$SCHEMA: Running compaction"
+   fillTemplate "setup-04-compact.sql" $schema $scale
+   runQuery "setup-04-compact.sql"
+   errCount=$(checkQueryError "${LOGDIR}/setup-04-compact.out")
+   if [[ $errCount -gt 0 ]]; then
+     echo "Error: compaction returned an error?"
+     exit 5
+   fi
+
+   message "$SCHEMA: Gather stats"
+   fillTemplate "setup-05-stats.sql" $schema $scale
+   runQuery "setup-05-stats.sql"
+   errCount=$(checkQueryError "${LOGDIR}/setup-05-stats.out")
+   if [[ $errCount -gt 0 ]]; then
+     echo "Error: gathering statistics returned an error?"
+     exit 5
+   fi
+   # TODO: check stats *really* ran
+
+
+   message "$SCHEMA: Counting tables"
+   fillTemplate "setup-06-count.sql" $schema $scale
+   runQuery "setup-06-count.sql"
+   errCount=$(checkQueryError "${LOGDIR}/setup-06-count.out")
+   if [[ $errCount -gt 0 ]]; then
+      echo "Error: failure during data load"
+      exit 4
+   fi
+
+   if ( ! checkTPCHTablesCounts $scale "setup-06-count.out"); then
+      debug "counts mismatched on $SCHEMA"
+   else
+      debug "counts are correct on $SCHEMA at scale $scale"
+   fi
 }
 
 # check counts
@@ -641,18 +741,21 @@ debug $0 entering Main for $BENCH with scale $SCALE schema $SCHEMA iterations $I
 if [[ "$BENCH" == "TPCH" ]]; then
 
   # check for SCHEMA; if not present, make it
-  if ( ! checkTPCHSchema $SCHEMA ) then
-    createTPCHdatabase $SCHEMA $SCALE
+  if ( ! validateTPCHSchema $SCHEMA ) then
+    createTPCHdatabase $SCHEMA $SCALE $MODE
   fi
  
   # bomb out if schema still not present
-  if ( ! checkTPCHSchema $SCHEMA ) then
-    debug "Error: the schema $SCHEMA no bueno"
+  if ( ! validateTPCHSchema $SCHEMA ) then
+    message "Error: the schema $SCHEMA has failed validation"
     exit 1
   fi
  
   # generate TPCH query files for this SCHEMA
   genTPCHqueries $SCHEMA
+
+  # TOODO: explain queries
+  # TOODO: implement TPCH validation checks
 
   # now start running
   if [[ $ITER -le 1 ]]; then
