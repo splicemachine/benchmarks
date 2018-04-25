@@ -109,38 +109,40 @@ pushDNS() {
 
 DNS="./temp-DNS.txt"
 
-touch $DNS
-if [[ ! -f $DNS ]]; then
-  echo Error: problem making temp file $DNS
-  exit 2
-fi
+#touch $DNS
+#if [[ ! -f $DNS ]]; then
+#  echo Error: problem making temp file $DNS
+#  exit 2
+#fi
 
 hmasterTask=$(findTask ${pods[0]})
 
 echo "found hmasterTask $hmasterTask"
 
-# loop through pods getting dns
-declare -i i=0
-for name in ${names[@]}; do
-  echo "get ip for name ${names[$i]} using $hmasterTask"
-  ip=$(fetchIpFromTask ${names[$i]} $hmasterTask | sed -e "s///g")
-  echo -e "$ip\t\t${names[$i]}"  >> $DNS
-  let i++
-done
+if [[ ! -f $DNS ]]; then
+  # loop through pods getting dns
+  declare -i i=0
+  for name in ${names[@]}; do
+    echo "get ip for name ${names[$i]} using $hmasterTask"
+    ip=$(fetchIpFromTask ${names[$i]} $hmasterTask | sed -e "s///g")
+    echo -e "$ip\t\t${names[$i]}"  >> $DNS
+    let i++
+  done
+fi
 
 echo DNS made
 cat $DNS
 echo -e "\n"
 
-# loop through pods, pushing DNS to tasks
-for pod in ${pods[@]}; do
-  #echo "push dns to pod ${pod[0]}"
-  task=$(findTask $pod)
-  echo pushing $DNS on $pod via task $task
-  pushDNS $task $DNS
-done
-
-frameworkId=$(getFrameworkId $FRAMEWORK)  
+if [[ ! $SPARKONLY ]]; then
+  # loop through pods, pushing DNS to tasks
+  for pod in ${pods[@]}; do
+    #echo "push dns to pod ${pod[0]}"
+    task=$(findTask $pod)
+    echo pushing $DNS on $pod via task $task
+    pushDNS $task $DNS
+  done
+fi
 
 # TODO: now loop spark
 # e.g. curl -v -skSL -X GET -H "Content-Type:application/json"  
@@ -148,15 +150,16 @@ frameworkId=$(getFrameworkId $FRAMEWORK)
 # jq -er '.tasks[] | select(.framework_id=="5a9b24cc-8d57-46cd-88d7-c9927ff1ea35-0031") | \
 #  select(.state=="TASK_RUNNING") | .id'
 
-frameworkId=$(getFrameworkId $FRAMEWORK)  
 HEADER="-skSL -X GET -H \"Content-Type:application/json\""
+frameworkId=$(getFrameworkId $FRAMEWORK)
 
-#echo curl ${HEADER} https://${DOMAIN}/mesos/tasks 
 for spark in $( curl ${HEADER} https://${DOMAIN}/mesos/tasks | jq -er --arg FRAME "$frameworkId" '.tasks[] | select(.framework_id==$FRAME) | select(.state=="TASK_RUNNING") | .id' ); do 
    echo pushing $DNS to spark-task $spark
    pushDNS $spark $DNS
 done
 
 
-echo cleanup $DNS
-rm $DNS
+if [[ ! $SPARKONLY ]]; then
+  echo cleanup $DNS
+  rm $DNS
+fi
