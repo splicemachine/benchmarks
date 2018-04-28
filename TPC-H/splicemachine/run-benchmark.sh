@@ -8,9 +8,11 @@ usage() {
 
 help() {
   usage
-  echo -e "\n\ta program to run a benchmark validation queryset against a Splice Machine database"
+  echo -e "\n\ta script to run a benchmark validation queryset against a Splice Machine database\n"
+  echo -e "    Arguments:"
   echo -e "\t -h host\t\t the hostname of your database. One of host or url is required."
-  echo -e "\t -u url\t\t a jdbc url for your database. One of host or url is required."
+  echo -e "\t -u url\t\t\t a jdbc url for your database. One of host or url is required."
+  echo -e "    Options:"
   echo -e "\t -b benchmark \t\t a benchmark to run. (default: TPCH) {valid: TPCH, TPCC}"
   echo -e "\t -s scale \t\t scale of (default: 1) {valid scales 1, 10, 100, 1000}"
   echo -e "\t -S set \t\t which query set to run (default: good) {valid: good, all, errors}"
@@ -30,6 +32,14 @@ debug() {
 
   if (( $DEBUG )); then
     echo "DEBUG: $msg" >&2
+  fi
+}
+
+messageBegin() {
+  local msg="$*"
+
+  if (( $VERBOSE )); then
+    echo -n "$msg"
   fi
 }
 
@@ -336,6 +346,24 @@ countResults() {
 
 }
 
+# check a query output for execution time
+checkQueryTime() {
+  local outfile=$1
+  local execTime=$(grep "ELAPSED TIME" $outfile 2>/dev/null | awk '{sum += $4} END {print sum}' )
+
+  #debug checkQueryTime: exec time is $execTime
+  echo $execTime
+}
+
+# check a query output for error
+checkQueryError() {
+  local outfile=$1
+  local -i errCount=$(grep ERROR $outfile 2>/dev/null | wc -l )
+
+  #debug checkQueryError: error count is $errCount
+  echo $errCount
+}
+
 # check if a schema exists
 checkSchema() {
    local schema=$1
@@ -408,6 +436,15 @@ checkTPCHTablesCounts() {
 
 }
 
+checkSchemaStats() {
+   local schema=$1
+   local outfile=""
+
+   # TODO: check that non-zero statistics are present
+   # $SQLSHELL -q $HOSTORURL -o  <<< "select sum(stats) from sys.statistics where schemaname = '${schema}';"
+   
+   return 1
+}
 
 # validate that a TPCH schema has the right tables
 validateTPCHSchema() {
@@ -435,8 +472,16 @@ validateTPCHSchema() {
      debug Schema $schema has 4 indices
    fi
 
-   # TODO: check that non-zero statistics are present
-   # "select sum(stats) from sys.statistics where schemaname = '${schema}';"
+   # TOODO: check compaction somehow? 
+
+   checkSchemaStats $schema
+   local -i statCount=$?
+   if [[ $statCount -eq 0 ]]; then
+      debug Schema $schema: zero statistics
+      return 1
+   else
+      debug Schema $schema has $statCount stats
+   fi
 
    # check that all the tables in setup-06-count.out have the 'right' counts
    if ( ! checkTPCHTablesCounts $scale "setup-06-count.out"); then
@@ -476,99 +521,133 @@ createTPCHdatabase() {
    local schema=$1
    local scale=$2
    local mode=$3
-
+   local start=`date +%s`
    local -i errCount
+
    debug "Creating TPCH at $schema for scale $scale using mode $mode"
 
-   # create the actual database
-   message "$schema: Creating tables"
+   messageBegin "$schema: Creating tables . . ."
    fillTemplate "setup-01-tables.sql" $schema $scale
    runQuery "setup-01-tables.sql"
+   local -i createTime=$(checkQueryTime "${LOGDIR}/setup-01-tables.out")
+   message " took $createTime milliseconds."
+
    errCount=$(checkQueryError "${LOGDIR}/setup-01-tables.out")
    if [[ $errCount -gt 0 ]]; then
       message "Error: errors seen during table create: $errCount"
+      exit 1
    elif ( ! checkTableCount $schema 8 ); then
       message "Error making 8 tables on $schema"
+      exit 1
    fi
 
    if [[ "$mode" == "linear" ]]; then
       fillTemplate "setup-02-linear-import.sql" $schema $scale
       fillTemplate "setup-03-linear-indexes.sql" $schema $scale
 
-      message "$SCHEMA: Loading data"
+      messageBegin "$schema: Loading data with IMPORT_DATA . . . "
       runQuery "setup-02-linear-import.sql"
-      errCount=$(checkQueryError "${LOGDIR}/setup-02-import.out")
+      local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-02-linear-import.out")
+      message " took $loadTime milliseconds."
+      errCount=$(checkQueryError "${LOGDIR}/setup-02-linear-import.out")
       if [[ $errCount -gt 0 ]]; then
-        echo "Error: failure during s3 data load. Is your cluster configured to read from s3?"
-        exit 4
+         echo "Error: failure during s3 data load. Is your cluster configured to read from s3?"
+         exit 2
       fi
 
-      message "$SCHEMA: Creating indexes"
+      messageBegin "$schema: Creating linear indexes . . ."
       runQuery "setup-03-linear-indexes.sql"
-
-      if ( ! checkIndexCount $SCHEMA 4 ); then
-         echo "Error: $SCHEMA is missing 4 indices"
-         exit 4
-      fi
-
-   else # i.e. mode=bulk
-
-      message "$SCHEMA: Pre-creating indexes"
-      fillTemplate "setup-02-bulk-splitindex.sql" $schema $scale
-      runQuery "setup-02-bulk-splitindex.sql"
-      # TOODO: complete pre-split-points for indexes
-      errCount=$(checkQueryError "${LOGDIR}/setup-02-bulk-splitindex.out")
-
-      if ( ! checkIndexCount $SCHEMA 4 ); then
-         echo "Error: $SCHEMA is missing 4 indices"
+      local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-03-linear-indexes.out")
+      message " took $indexTime milliseconds."
+      errCount=$(checkQueryError "${LOGDIR}/setup-03-linear-indexes.out")
+      if [[ $errCount -gt 0 ]]; then
+         echo "Error: failure during index creation"
+         exit 3
+      elif ( ! checkIndexCount $schema 4 ); then
+         echo "Error: $schema is missing 4 indexes"
          exit 3
       fi
 
+   else # i.e. mode=bulk
+      # TOODO: complete pre-split-points for indexes
+
+      messageBegin "$schema: Pre-creating indexes . . ."
+      fillTemplate "setup-02-bulk-splitindex.sql" $schema $scale
+      runQuery "setup-02-bulk-splitindex.sql"
+      local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-02-bulk-splitindex.out")
+      message " took $indexTime milliseconds."
+      errCount=$(checkQueryError "${LOGDIR}/setup-02-bulk-splitindex.out")
+      if [[ $errCount -gt 0 ]]; then
+         echo "Error: failure during creation of indexes on empty tables"
+         exit 2
+      elif ( ! checkIndexCount $schema 4 ); then
+         echo "Error: $schema is missing 4 indexes"
+         exit 2
+      fi
+
       # hfile bulk load from s3 for faster load
-      message "$SCHEMA: Bulk loading data"
+      messageBegin "$schema: Bulk loading data . . ."
       fillTemplate "setup-03-bulk-import.sql" $schema $scale
       runQuery "setup-03-bulk-import.sql"
+      local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-03-bulk-import.out")
+      message " took $loadTime milliseconds."
       errCount=$(checkQueryError "${LOGDIR}/setup-03-bulk-import.out")
       if [[ $errCount -gt 0 ]]; then
         echo "Error: failure during s3 data bulkload. Is your cluster configured to read from s3?"
-        exit 4
+        exit 3
       fi
    fi
 
-   message "$SCHEMA: Running compaction"
+   messageBegin "$schema: Running compaction . . ."
    fillTemplate "setup-04-compact.sql" $schema $scale
    runQuery "setup-04-compact.sql"
+   local -i compactTime=$(checkQueryTime "${LOGDIR}/setup-04-compact.out")
+   message " took $compactTime milliseconds."
    errCount=$(checkQueryError "${LOGDIR}/setup-04-compact.out")
    if [[ $errCount -gt 0 ]]; then
      echo "Error: compaction returned an error?"
-     exit 5
+     exit 4
    fi
 
-   message "$SCHEMA: Gather stats"
+   messageBegin "$schema: Gathering statstics . . ."
    fillTemplate "setup-05-stats.sql" $schema $scale
    runQuery "setup-05-stats.sql"
+   checkSchemaStats $schema
+   local -i statCount=$?
+   local -i statsTime=$(checkQueryTime "${LOGDIR}/setup-05-stats.out")
+   message " took $statsTime milliseconds to gather $statCount stats."
    errCount=$(checkQueryError "${LOGDIR}/setup-05-stats.out")
    if [[ $errCount -gt 0 ]]; then
-     echo "Error: gathering statistics returned an error?"
-     exit 5
+      echo "Error: gathering statistics returned an error?"
+      exit 5
+   elif [[ $statCount -eq 0 ]]; then
+      echo "Error: zero statistics returned"
+      exit 5
    fi
-   # TODO: check stats *really* ran
 
-
-   message "$SCHEMA: Counting tables"
+   messageBegin "$schema: Counting tables . . ."
    fillTemplate "setup-06-count.sql" $schema $scale
    runQuery "setup-06-count.sql"
+   local -i countTime=$(checkQueryTime "${LOGDIR}/setup-06-count.out")
+   message " took $countTime milliseconds."
    errCount=$(checkQueryError "${LOGDIR}/setup-06-count.out")
    if [[ $errCount -gt 0 ]]; then
       echo "Error: failure during data load"
       exit 4
    fi
 
+   # check if the counts are accurate
    if ( ! checkTPCHTablesCounts $scale "setup-06-count.out"); then
-      debug "counts mismatched on $SCHEMA"
+      message "Error: counts mismatched on $schema"
    else
-      debug "counts are correct on $SCHEMA at scale $scale"
+      message "Counts are correct on $schema at scale $scale"
    fi
+
+   # capture total time and print results
+   local -i end=`date +%s`
+   runtime=$((end-start))
+   message "\t\t\t Times:\tSetup Time,\tCreate,\tIndex,\tLoad,\tCompact,\tStats,\tCount"
+   echo -e "$schema setup times:\t${runtime},\t${createTime},\t${indexTime},\t${loadTime},\t${compactTime},\t${statsTime},\t${countTime}"
 }
 
 # check counts
@@ -601,24 +680,6 @@ runTPCHQueries() {
   done
 }
 
-# check a query output for error
-checkQueryError() {
-  local outfile=$1
-  local -i errCount=$(grep ERROR $outfile 2>/dev/null | wc -l )
-
-  #debug checkQueryError: error count is $errCount
-  echo $errCount
-}
-
-# check a query output for execution time
-checkQueryTime() {
-  local outfile=$1
-  local execTime=$(grep "ELAPSED TIME" $outfile 2>/dev/null | awk '{print $4,$5}' )
-
-  #debug checkQueryTime: exec time is $execTime
-  echo $execTime
-}
-
 checkTPCHresults() {
   local schema=$1
   local iter=$2
@@ -634,8 +695,8 @@ checkTPCHresults() {
     if [[ $errCount -eq 0 ]]; then
       local time=$(checkQueryTime "${LOGDIR}/query-${i}.out")
       if [[ "$time" != "" ]]; then
-        message "$SCHEMA query-${i}.sql took $time"
-        results[$j]=$(echo $time|awk '{print $1}')
+        message "$SCHEMA query-${i}.sql took $time milliseconds"
+        results[$j]=$time
       else
         message "$SCHEMA query-${i}.sql no errors and no time"
         results[$j]="Nan"
@@ -664,10 +725,10 @@ checkTPCHresults() {
 
 }
 
-# TODO: iterate over many results
+# TOODO: iterate over many results
 # checkTPCHOutputs() {
 # compute min/max/avg/stddev
-# TODO: consider global results 2-dimensional array?
+# TOODO: consider global results 2-dimensional array?
 # RESULTS[$i][0] = name
 # RESULTS[$i][1] = count
 # RESULTS[$i][2] = sum
@@ -707,8 +768,8 @@ $SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o ${LOGDIR}/$testOut
 if [[ "$?" != "0" ]]; then
   echo "Error: sqlshell test failed for $SQLSHELL at $JDBC_URL" 
   exit 3
-elif (( $VERBOSE )); then
-  echo "Test query results follow"
+elif (( $DEBUG )); then
+  message "Test query results follow"
   cat ${LOGDIR}/$testOut
   echo
 fi
@@ -725,7 +786,7 @@ fi
 testErr=$(checkQueryError $testOut)
 if [[ $testErr -ne  0 ]]; then
    echo "Error: runQuery had errors on testQry"
-  if (( $VERBOSE )); then
+  if (( $DEBUG )); then
     cat $testOut
     echo
   fi
@@ -781,13 +842,13 @@ if [[ "$BENCH" == "TPCH" ]]; then
       let i++
     done
     
-    # TODO: behavior: if iterations > 1, provide avg/min/max/stddev
+    # TOODO: behavior: if iterations > 1, provide avg/min/max/stddev
   fi
 
   # possibly send email?
   # possibly write to a table?
 
-  # TODO: document docker.for.mac.localhost
+  # TOODO: document docker.for.mac.localhost
 
 elif [[ "$BENCH" == "TPCC" ]]; then
 
