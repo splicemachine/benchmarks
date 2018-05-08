@@ -31,7 +31,7 @@ CREATE INDEX L_PART_IDX ON LINEITEM(
  L_SHIPINSTRUCT
  );
 
-# TODO: add the following for each index
-#SPLITKEYS LOCATION '/tmp/ordersKey.csv'
-#          COLDELIMITER '|'
-#          HFILE LOCATION '/tmp/HFiles';
+-- TODO: add the following for each index
+-- SPLITKEYS LOCATION '/tmp/ordersKey.csv'
+--          COLDELIMITER '|'
+--          HFILE LOCATION '/tmp/HFiles';
