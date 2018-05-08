@@ -47,7 +47,7 @@ message() {
   local msg="$*"
 
   if (( $VERBOSE )); then
-    echo "$msg"
+    echo -e "$msg"
   fi
 }
 
@@ -66,7 +66,8 @@ now() {
   date +%Y%m%d-%H%M
 }
 
-START=$(now)
+STARTD=$(now)
+STARTS=`date +%s`
 
 #Defaults
 HOST=""
@@ -200,8 +201,8 @@ if [[ "$SET" != "good" && "$SET" != "all" && "$SET" != "errors" ]]; then
 fi
 
 # TODO: implement specific query selection using SET
-TPCHMIN=1
-TPCHMAX=22
+TPCHMIN=8
+TPCHMAX=10
 
 # check MODE (bulk, linear)
 if [[ "$MODE" != "bulk" && "$MODE" != "linear" ]]; then
@@ -219,10 +220,10 @@ if [[ "$LOGBASE" != "" ]]; then
       echo "Error: specified logdir does not exist: $LOGBASE"
       exit 2
    fi
-   LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$START"
+   LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD"
 else
    LOGBASE=$BASEDIR
-   LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$START"
+   LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD"
 fi
 
 if [[ ! -d $LOGDIR ]]; then
@@ -232,7 +233,7 @@ fi
 
 #  check if label is blank else generate it
 if [[ "$LABEL" == "" ]]; then
-  LABEL="$BENCH-$SCALE benchmark run started $START"
+  LABEL="$BENCH-$SCALE benchmark run started $STARTD"
   debug generated label $LABEL 
 fi
 
@@ -442,7 +443,7 @@ checkSchemaStats() {
 
    # TODO: check that non-zero statistics are present
    # $SQLSHELL -q $HOSTORURL -o  <<< "select sum(stats) from sys.statistics where schemaname = '${schema}';"
-   
+
    return 1
 }
 
@@ -472,7 +473,7 @@ validateTPCHSchema() {
      debug Schema $schema has 4 indices
    fi
 
-   # TOODO: check compaction somehow? 
+   # TOODO: check compaction somehow?
 
    checkSchemaStats $schema
    local -i statCount=$?
@@ -832,7 +833,7 @@ if [[ "$BENCH" == "TPCH" ]]; then
     while [ $i -le $ITER ]; do
       loopStart=$(now)
 
-      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$START-iter$i"
+      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD-iter$i"
       mkdir -p $LOGDIR
 
       debug running $SCHEMA iter$i at $loopStart
@@ -856,3 +857,7 @@ elif [[ "$BENCH" == "TPCC" ]]; then
   echo "Sorry, TPCC is not yet implemented"
 
 fi
+
+ENDS=`date +%s`
+TOTALS=$((ENDS-STARTS))
+echo Total runtime was $TOTALS seconds
