@@ -13,16 +13,15 @@ from
 			year(o_orderdate) as o_year,
 			l_extendedprice * (1 - l_discount) as volume,
 			n2.n_name as nation
-
-                from --SPLICE-PROPERTIES joinOrder=FIXED
-                         lineitem --SPLICE-PROPERTIES index=L_PART_IDX
-                         ,part --SPLICE-PROPERTIES joinStrategy=MERGE
-                         ,supplier --SPLICE-PROPERTIES joinStrategy=BROADCAST
-                         ,orders --SPLICE-PROPERTIES joinStrategy=BROADCAST
-                         ,customer --SPLICE-PROPERTIES joinStrategy=BROADCAST
-                         ,nation n1 --SPLICE-PROPERTIES joinStrategy=BROADCAST
-                         ,nation n2 --SPLICE-PROPERTIES joinStrategy=BROADCAST
-                         ,region --SPLICE-PROPERTIES joinStrategy=BROADCAST
+		from
+			part,
+			supplier,
+			lineitem,
+			orders,
+			customer,
+			nation n1,
+			nation n2,
+			region
 		where
 			p_partkey = l_partkey
 			and s_suppkey = l_suppkey
