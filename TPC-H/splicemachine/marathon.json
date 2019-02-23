@@ -1,9 +1,9 @@
 {
-  "id": "/benchmark100",
+  "id": "/benchmark10.3",
   "cmd": null,
-  "args": [ "-D", "-V", "-s", "100", "-i", "3", "-S", "all",
+  "args": [ "-D", "-V", "-s", "10", "-i", "3", "-S", "all", "-n", "TRES",
             "-L", "/mnt/mesos/sandbox/",
-            "-u", "jdbc:splice://hregion-0-node.murraysaccount-new-5431078e7c.mesos:1527/splicedb;user=splice;password=JQtGh8qW" ],
+            "-u", "jdbc:splice://hregion-0-node.tedsaccount-test-cd286b758e.mesos:1527/splicedb;user=splice;password=foobar" ],
   "cpus": 0.2,
   "mem": 256,
   "disk": 250,
