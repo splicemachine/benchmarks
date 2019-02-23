@@ -131,8 +131,8 @@ while getopts ":h:u:b:s:S:m:L:l:n:i:t:DVH" opt; do
 done
 shift $((OPTIND-1))
 
-# concoct schema name from inputs
-SCHEMA="${BENCH}${SCALE}${SUFFIX}"
+# concoct all uppercase schema name from inputs
+SCHEMA=$(echo ${BENCH}${SCALE}${SUFFIX} | awk '{print toupper($0)}' )
 
 # setup BASEDIR
 BASEDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -200,9 +200,9 @@ if [[ "$SET" != "good" && "$SET" != "all" && "$SET" != "errors" ]]; then
    exit 2
 fi
 
-# TODO: implement specific query selection using SET
-TPCHMIN=8
-TPCHMAX=10
+# Benchmark range variables
+TPCHMIN=1
+TPCHMAX=22
 
 # check MODE (bulk, linear)
 if [[ "$MODE" != "bulk" && "$MODE" != "linear" ]]; then
@@ -272,7 +272,7 @@ debug exiting arg checks
 
 # use sqlshell find job id
 getJobIds() {
-  local outfile="./getJobId.out"
+  local outfile="${LOGDIR}/getJobId.out"
 
   $SQLSHELL -q $HOSTORURL -o $outfile <<< "call syscs_util.SYSCS_GET_RUNNING_OPERATIONS();"
 
@@ -427,12 +427,55 @@ checkIndexCount() {
    fi
 } 
 
+# check specific dataset table counts
 checkTPCHTablesCounts() {
    local scale=$1
    local outfile=$2
 
-   # TODO: implement getting counts from outfile and comparing
+   local tables="CUSTOMER LINEITEM NATION ORDERS PART PARTSUPP REGION SUPPLIER"
 
+   # TOODO: figure out how to do multi-dimensional bash arrays
+   local -a answers1=(150000 6001215 25 1500000 200000 800000 5 10000)
+   local -a answers10=(10 10 10 10 10 10 10 10)
+   local -a answers100=(100 100 100 100 100 100 100 100)
+   local -a answers1000=(1000 1000 1000 1000 1000 1000 1000 1000)
+
+   # get counts from outfile and compare
+   local -i i=0;
+   local num;
+   local -i err=0;
+   debug about to loop tables
+   for table in $tables; do
+      num=$(grep -A2 "^${table}[[:space:]]*$" ${LOGDIR}/../$outfile | tail -1| awk '{print $1}')
+
+      #debug compare $num vs ${answers1[$i]} from $outfile
+      if [[ "$scale" == "1" ]]; then
+         if [[ "${answers1[$i]}" != "$num" ]]; then
+            err=$((err+1))
+         fi
+      elif [[ "$scale" == "10" ]]; then
+         if [[ "${answers10[$i]}" != "$num" ]]; then
+            err=$((err+1))
+         fi
+      elif [[ "$scale" == "100" ]]; then
+         if [[ "${answers100[$i]}" != "$num" ]]; then
+            err=$((err+1))
+         fi
+      elif [[ "$scale" == "1000" ]]; then
+         if [[ "${answers1000[$i]}" != "$num" ]]; then
+            err=$((err+1))
+         fi
+      else # not implemented
+         err=$((err+1))
+      fi
+      i=$((i+1))
+   done
+
+   if [[ $err -gt 0 ]]; then
+      debug checkTPCHTablesCounts returning 1
+      return 1
+   fi
+   debug checkTPCHTablesCounts returning 0
    return 0
 
 }
@@ -629,6 +672,10 @@ createTPCHdatabase() {
    messageBegin "$schema: Counting tables . . ."
    fillTemplate "setup-06-count.sql" $schema $scale
    runQuery "setup-06-count.sql"
+   #HACK: copy setup-06-count.out to parent dir for future count checks
+   cp ${LOGDIR}/setup-06-count.out ${LOGDIR}/../
+   #TOODO: remove HACK about setup-06-count.out
+
    local -i countTime=$(checkQueryTime "${LOGDIR}/setup-06-count.out")
    message " took $countTime milliseconds."
    errCount=$(checkQueryError "${LOGDIR}/setup-06-count.out")
@@ -651,9 +698,6 @@ createTPCHdatabase() {
    echo -e "$schema setup times:\t${runtime},\t${createTime},\t${indexTime},\t${loadTime},\t${compactTime},\t${statsTime},\t${countTime}"
 }
 
-# check counts
-# TOOD: write a routine to check that TPCH was loaded with correct data
-
 # generate query files for this schema
 genTPCHqueries() {
   local schema=$1
@@ -670,14 +714,19 @@ runTPCHQueries() {
   local i
 
   for i in `seq -w $TPCHMIN $TPCHMAX`; do
-    if [ "${i}" = "20" ]; then
-       message "skipping TPCH query 20"
-       continue
+    if [[ "$SET" == "good" ]]; then
+       if [ "${i}" = "08" ] || [ "${i}" = "18" ] || [ "${i}" = "20" ]; then
+          message "Set is $SET, so skipping TPCH query ${i}"
+          continue
+       fi
+    elif [[ "$SET" == "errors" ]]; then
+       if [ "${i}" != "08" ] && [ "${i}" != "18" ] && [ "${i}" != "20" ]; then
+          message "Set is $SET, so skipping TPCH query ${i}"
+          continue
+       fi
     fi
     message "Running TPCH query ${i} at scale $SCALE"
     runQuery "query-${i}.sql"
-    # temporary hack
-    #echo "no data" > ${LOGDIR}/query-${i}.out
   done
 }
 
@@ -736,7 +785,7 @@ checkTPCHresults() {
 # RESULTS[$i][3] = sumsq
 # }
 
-# TODO: output result as many-row csv file
+# TOODO: output result as many-row csv file
 # test_run.csv
 #Time	Query	Iteration	Status	Error code	Error msg	Elapsed
 
@@ -803,12 +852,12 @@ debug $0 entering Main for $BENCH with scale $SCALE schema $SCHEMA iterations $I
 if [[ "$BENCH" == "TPCH" ]]; then
 
   # check for SCHEMA; if not present, make it
-  if ( ! validateTPCHSchema $SCHEMA ) then
+  if ( ! validateTPCHSchema $SCHEMA $SCALE ) then
     createTPCHdatabase $SCHEMA $SCALE $MODE
   fi
  
   # bomb out if schema still not present
-  if ( ! validateTPCHSchema $SCHEMA ) then
+  if ( ! validateTPCHSchema $SCHEMA $SCALE ) then
     message "Error: the schema $SCHEMA has failed validation"
     exit 1
   fi
