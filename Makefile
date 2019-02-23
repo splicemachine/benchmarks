@@ -1,5 +1,5 @@
 NAME = splicemachine/benchmark
-VERSION = 0.3.0
+VERSION = 0.3.2
 
 .PHONY: all build clean push realclean
 
