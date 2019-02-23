@@ -26,6 +26,10 @@ elif [[ "$ENVARG" == "p" || "$ENVARG" == "prod" || "$ENVARG" == "production" ]];
   DOMAIN="us-east-1.splicemachine.io"
   SPLICEHDFS="splicehdfs01"
   if (( $VERBOSE )); then echo "switching to prod env $DOMAIN"; fi
+elif [[ "$ENVARG" == "z" || "$ENVARG" == "az" || "$ENVARG" == "azure" ]]; then
+  DOMAIN="dcos-splice.eastus2.cloudapp.azure.com"
+  SPLICEHDFS="splicehdfs-az-prod"
+  if (( $VERBOSE )); then echo "switching to azure env $DOMAIN"; fi
 else
   echo "Error: environment $ENVARG not recognized"
   exit 2
@@ -54,9 +58,9 @@ fi
 # dcos ... task exec -ti $task bash -c hostname
 # }
 
-# get framework_id from framework
+# get spark framework_id from framework
 # e.g. dcos service | grep "murraysaccount-tpch1g10g100g-a0fb840a0b-spark" | awk '{print $8}'
-getFrameworkId() {
+getSparkFrameworkId() {
   dcos service | grep "$FRAMEWORK-spark" | awk '{print $8}'
 }
 
@@ -151,9 +155,9 @@ fi
 #  select(.state=="TASK_RUNNING") | .id'
 
 HEADER="-skSL -X GET -H \"Content-Type:application/json\""
-frameworkId=$(getFrameworkId $FRAMEWORK)
+sparkFramework=$(getSparkFrameworkId $FRAMEWORK)
 
-for spark in $( curl ${HEADER} https://${DOMAIN}/mesos/tasks | jq -er --arg FRAME "$frameworkId" '.tasks[] | select(.framework_id==$FRAME) | select(.state=="TASK_RUNNING") | .id' ); do 
+for spark in $( curl ${HEADER} https://${DOMAIN}/mesos/tasks | jq -er --arg FRAME "$sparkFramework" '.tasks[] | select(.framework_id==$FRAME) | select(.state=="TASK_RUNNING") | .id' ); do 
    echo pushing $DNS to spark-task $spark
    pushDNS $spark $DNS
 done
