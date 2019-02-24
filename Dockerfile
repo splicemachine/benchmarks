@@ -20,8 +20,8 @@ RUN	\
 
 # TODO: once DB-6899 gets to cloud service, update to the SQLSHELL_URL
 COPY ./sqlshell /sqlshell
-COPY ./TPC-H/splicemachine/templates /TPC-H/templates
-COPY ./TPC-DS/splicemachine/templates /TPC-DS/templates
+COPY ./TPC-H/templates /TPC-H/templates
+COPY ./TPC-DS/templates /TPC-DS/templates
 COPY ./run-benchmark.sh /run-benchmark.sh
 
 ENTRYPOINT ["/bin/bash", "-c", "/run-benchmark.sh \"$@\"", "--"]
