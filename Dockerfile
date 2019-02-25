@@ -3,7 +3,7 @@ FROM openjdk:8-jre-alpine
 MAINTAINER Murray Brown <mbrown@splicemachine.com>
 
 # -----
-# TODO: merge all benchmarks into one image?  for now only TPCH
+# TODO: merge all benchmarks into one image?  for now only TPCH and TPCDS
 # -----
 
 ## TODO: figure out versioning of sqlshell url
@@ -20,7 +20,8 @@ RUN	\
 
 # TODO: once DB-6899 gets to cloud service, update to the SQLSHELL_URL
 COPY ./sqlshell /sqlshell
-COPY ./templates /templates
+COPY ./TPC-H/templates /TPC-H/templates
+COPY ./TPC-DS/templates /TPC-DS/templates
 COPY ./run-benchmark.sh /run-benchmark.sh
 
 ENTRYPOINT ["/bin/bash", "-c", "/run-benchmark.sh \"$@\"", "--"]

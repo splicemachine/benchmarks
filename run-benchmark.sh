@@ -13,9 +13,10 @@ help() {
   echo -e "\t -h host\t\t the hostname of your database. One of host or url is required."
   echo -e "\t -u url\t\t\t a jdbc url for your database. One of host or url is required."
   echo -e "    Options:"
-  echo -e "\t -b benchmark \t\t a benchmark to run. (default: TPCH) {valid: TPCH, TPCC}"
+  echo -e "\t -b benchmark \t\t a benchmark to run. (default: TPCH) {valid: TPCH, TPCDS, TPCC, HTAP}"
   echo -e "\t -s scale \t\t scale of (default: 1) {valid scales 1, 10, 100, 1000}"
-  echo -e "\t -S set \t\t which query set to run (default: good) {valid: good, all, errors}"
+  echo -e "\t -S set \t\t which query set to run (default: good) {valid: good, snow, all, errors}"
+  echo -e "\t\t\t\t you can also supply a list of one or more comma-separated query numbers e.g. 01,07,21"
   echo -e "\t -m mode \t\t mode for setup (default: bulk) {valid: bulk or linear}"
   echo -e "\t -L logdir \t\t a directory to base the logs (default: /logs)"
   echo -e "\t -l label \t\t a label to identify the output (default: scale and date)"
@@ -76,6 +77,7 @@ BENCH="TPCH"
 INTERACTIVE=0
 SCALE=1
 SET="good"
+SETSTYLE="words"
 MODE="bulk"
 LOGBASE=""
 LABEL=""
@@ -137,7 +139,13 @@ SCHEMA=$(echo ${BENCH}${SCALE}${SUFFIX} | awk '{print toupper($0)}' )
 # setup BASEDIR
 BASEDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 BASEDIR=$(fixPath $BASEDIR)
-debug basedir ends in / $BASEDIR
+#debug basedir ends in / $BASEDIR
+
+# setup BENCHMARK
+BENCHMARK="TPC-H"
+if [[ "$BENCH" == "TPCDS" ]]; then
+   BENCHMARK="TPC-DS"
+fi
 
 # query directory
 SQLDIR="${BASEDIR}${SCHEMA}-queries"
@@ -168,7 +176,7 @@ debug host-or-url is ${HOSTORURL}
 # TOODO: figure out if URL is 'well-formed'
 
 # check valid benchmark
-if [[ "$BENCH" != "TPCH" && "$BENCH" != "TPCC" ]]; then
+if [[ "$BENCH" != "TPCH" && "$BENCH" != "TPCC" && "$BENCH" != "TPCDS" && "$BENCH" != "HTAP" ]]; then
    echo "Error: benchmark $BENCH is not supported!"
    usage
    exit 2
@@ -179,8 +187,11 @@ fi
 QRY11="0.0001000000" # defaults to tpch1g
 
 # check for only valid scales
-if [[ "$BENCH" == "TPCH" && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" ]]; then
-   echo "Error: scale of $SCALE is not supported for $BENCH!"
+if [[ "$BENCH" == "TPCH"  && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" || \
+      "$BENCH" == "TPCDS" && "$SCALE" != "1" || \
+      "$BENCH" == "TPCC"  && "$SCALE" != "1" || \
+      "$BENCH" == "HTAP"  && "$SCALE" != "25" ]]; then
+   echo "Error: scale of $SCALE is not (yet) supported for $BENCH!"
    usage
    exit 2
 elif [[ "$SCALE" == "1" ]]; then
@@ -193,16 +204,69 @@ elif [[ "$SCALE" == "1000" ]]; then
   QRY11="0.0000001000"
 fi
 
-# check SET (good, all, errors, ??)
-if [[ "$SET" != "good" && "$SET" != "all" && "$SET" != "errors" ]]; then
-   echo "Error: set argument $SET is not supported. Valid values: [ good, all, errors ]"
+
+if [[ "$BENCH" == "TPCDS" && "$SCALE" != "1" ]]; then
+   echo "Error: scale of $SCALE is not supported for $BENCH!"
    usage
    exit 2
 fi
 
-# Benchmark range variables
-TPCHMIN=1
-TPCHMAX=22
+# defaults for TPCH
+TABLECNT=8
+INDEXCNT=4
+BENCHMIN=1
+BENCHMAX=22
+
+if [[ "$BENCH" == "TPCDS" ]]; then
+  TABLECNT=25
+  INDEXCNT=0
+  BENCHMIN=1
+  BENCHMAX=99
+fi
+
+# The SET argument can also accept a list of query numbers e.g. 01,07,22
+validateSet() {
+   local set=$1
+   local err=0
+
+   debug validateSet for $set
+
+   # reject illegal characters outside [0-9,]+
+   local illegal=$( echo "$set" |  sed -E 's/[0-9,]+//g' )
+   if [[ "$illegal" != "" ]]; then
+      debug rejecting illegal SET values of $illegal
+      return 1
+   fi
+
+   # split on comma
+   local -i qry
+   for qry in $(echo $set | sed "s/,/ /g"); do
+      if [[ $qry -gt $BENCHMAX || $qry -lt $BENCHMIN ]]; then
+         err=$((err + 1))
+      fi
+   done
+
+   return $err
+
+}
+
+# check the value of SET
+if [[ "$SET" != "good" && "$SET" != "snow" && "$SET" != "all" && "$SET" != "errors" && "$SET" != "err" ]]; then
+   SETSTYLE="numbers"
+   validateSet $SET
+   if (( $? != 0 )); then
+      echo "Error: set argument $SET is not a valid list of queries for $BENCH"
+      usage
+      exit 2
+   fi
+fi
+
+# check SET (good, all, errors, ??)
+if [[ "$SET" != "good" && "$SET" != "snow" && "$SET" != "all" && "$SET" != "errors" && "$SET" != "err" && "$SETSTYLE" == "words" ]]; then
+   echo "Error: set argument $SET is not supported. Valid values: [ good, snow, all, err, errors ]"
+   usage
+   exit 2
+fi
 
 # check MODE (bulk, linear)
 if [[ "$MODE" != "bulk" && "$MODE" != "linear" ]]; then
@@ -291,6 +355,7 @@ runQuery() {
    local queryfile=${SQLDIR}/${1}
    local outfile=${LOGDIR}/${1//sql/out}
 
+   #message running $queryfile
    if [[ $TIMEOUT -eq 0 ]]; then
       $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
       return $?
@@ -490,7 +555,24 @@ checkSchemaStats() {
    return 1
 }
 
-# validate that a TPCH schema has the right tables
+validateSchema() {
+   local bench=$1
+   local schema=$2
+   local scale=$3
+
+   if [[ "$bench" == "TPCH" ]]; then
+      validateTPCHSchema $schema $scale
+      return $?
+   elif [[ "$bench" == "TPCDS" ]]; then
+      # TODO: implement validateTPCDSSchema
+      return 0
+   else
+      return 1
+   fi
+}
+
+
+# validate that schema has the right tables
 validateTPCHSchema() {
    local schema=$1
    local scale=$2
@@ -501,19 +583,19 @@ validateTPCHSchema() {
    fi
 
    # check that tables are present
-   if ( ! checkTableCount $schema 8 ); then
-      debug Schema $schema: missing 8 tables
+   if ( ! checkTableCount $schema $TABLECNT ); then
+      debug Schema $schema: missing $TABLECNT tables
       return 1
    else
-     debug Schema $schema has 8 tables
+     debug Schema $schema has $TABLECNT tables
    fi
 
    # check that indexes are present
-   if ( ! checkIndexCount $schema 4 ); then
-      debug Schema $schema: missing 4 indices
+   if ( ! checkIndexCount $schema $INDEXCNT ); then
+      debug Schema $schema: missing $INDEXCNT indices
       return 1
    else
-     debug Schema $schema has 4 indices
+     debug Schema $schema has $INDEXCNT indices
    fi
 
    # TOODO: check compaction somehow?
@@ -539,19 +621,21 @@ validateTPCHSchema() {
 }
 
 # substitution function for templated queries
-fillTemplate() {
+fillQueryTemplate() {
   local file=$1
   local schema=$2
   local scale=$3
 
-  local input="${BASEDIR}templates/$file"
+  local input="${BASEDIR}${BENCHMARK}/templates/$file"
   local output="$SQLDIR/$file"
+
+  # TODO: add header as template fragment
 
   if [[ ! -f $input ]]; then
     debug "Error: there is no template $file"
     return 1
   fi
-  debug copying input $input to output $output
+  #debug copying input $input to output $output
   cat $input | sed \
    -e "s/##SCHEMA##/$schema/g" \
    -e "s/##SCALE##/$scale/g" \
@@ -560,18 +644,23 @@ fillTemplate() {
 
 }
 
-# create and load the TPCH database for this scale
-createTPCHdatabase() {
+## TODO: implement fillExplainTemplate
+#fillExplainTemplate() {
+#  # TODO: i need love
+#}
+
+# create and load the benchmark database for this scale
+createDatabase() {
    local schema=$1
    local scale=$2
    local mode=$3
    local start=`date +%s`
    local -i errCount
 
-   debug "Creating TPCH at $schema for scale $scale using mode $mode"
+   debug "Creating $BENCH db at $schema for scale $scale using mode $mode"
 
    messageBegin "$schema: Creating tables . . ."
-   fillTemplate "setup-01-tables.sql" $schema $scale
+   fillQueryTemplate "setup-01-tables.sql" $schema $scale
    runQuery "setup-01-tables.sql"
    local -i createTime=$(checkQueryTime "${LOGDIR}/setup-01-tables.out")
    message " took $createTime milliseconds."
@@ -580,14 +669,14 @@ createTPCHdatabase() {
    if [[ $errCount -gt 0 ]]; then
       message "Error: errors seen during table create: $errCount"
       exit 1
-   elif ( ! checkTableCount $schema 8 ); then
-      message "Error making 8 tables on $schema"
+   elif ( ! checkTableCount $schema $TABLECNT ); then
+      message "Error making $TABLECNT tables on $schema"
       exit 1
    fi
 
    if [[ "$mode" == "linear" ]]; then
-      fillTemplate "setup-02-linear-import.sql" $schema $scale
-      fillTemplate "setup-03-linear-indexes.sql" $schema $scale
+      fillQueryTemplate "setup-02-linear-import.sql" $schema $scale
+      fillQueryTemplate "setup-03-linear-indexes.sql" $schema $scale
 
       messageBegin "$schema: Loading data with IMPORT_DATA . . . "
       runQuery "setup-02-linear-import.sql"
@@ -607,8 +696,8 @@ createTPCHdatabase() {
       if [[ $errCount -gt 0 ]]; then
          echo "Error: failure during index creation"
          exit 3
-      elif ( ! checkIndexCount $schema 4 ); then
-         echo "Error: $schema is missing 4 indexes"
+      elif ( ! checkIndexCount $schema $INDEXCNT ); then
+         echo "Error: $schema is missing $INDEXCNT indexes"
          exit 3
       fi
 
@@ -616,7 +705,7 @@ createTPCHdatabase() {
       # TOODO: complete pre-split-points for indexes
 
       messageBegin "$schema: Pre-creating indexes . . ."
-      fillTemplate "setup-02-bulk-splitindex.sql" $schema $scale
+      fillQueryTemplate "setup-02-bulk-splitindex.sql" $schema $scale
       runQuery "setup-02-bulk-splitindex.sql"
       local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-02-bulk-splitindex.out")
       message " took $indexTime milliseconds."
@@ -624,14 +713,14 @@ createTPCHdatabase() {
       if [[ $errCount -gt 0 ]]; then
          echo "Error: failure during creation of indexes on empty tables"
          exit 2
-      elif ( ! checkIndexCount $schema 4 ); then
-         echo "Error: $schema is missing 4 indexes"
+      elif ( ! checkIndexCount $schema $INDEXCNT ); then
+         echo "Error: $schema is missing $INDEXCNT indexes"
          exit 2
       fi
 
       # hfile bulk load from s3 for faster load
       messageBegin "$schema: Bulk loading data . . ."
-      fillTemplate "setup-03-bulk-import.sql" $schema $scale
+      fillQueryTemplate "setup-03-bulk-import.sql" $schema $scale
       runQuery "setup-03-bulk-import.sql"
       local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-03-bulk-import.out")
       message " took $loadTime milliseconds."
@@ -643,7 +732,7 @@ createTPCHdatabase() {
    fi
 
    messageBegin "$schema: Running compaction . . ."
-   fillTemplate "setup-04-compact.sql" $schema $scale
+   fillQueryTemplate "setup-04-compact.sql" $schema $scale
    runQuery "setup-04-compact.sql"
    local -i compactTime=$(checkQueryTime "${LOGDIR}/setup-04-compact.out")
    message " took $compactTime milliseconds."
@@ -654,7 +743,7 @@ createTPCHdatabase() {
    fi
 
    messageBegin "$schema: Gathering statstics . . ."
-   fillTemplate "setup-05-stats.sql" $schema $scale
+   fillQueryTemplate "setup-05-stats.sql" $schema $scale
    runQuery "setup-05-stats.sql"
    checkSchemaStats $schema
    local -i statCount=$?
@@ -670,7 +759,7 @@ createTPCHdatabase() {
    fi
 
    messageBegin "$schema: Counting tables . . ."
-   fillTemplate "setup-06-count.sql" $schema $scale
+   fillQueryTemplate "setup-06-count.sql" $schema $scale
    runQuery "setup-06-count.sql"
    #HACK: copy setup-06-count.out to parent dir for future count checks
    cp ${LOGDIR}/setup-06-count.out ${LOGDIR}/../
@@ -698,215 +787,263 @@ createTPCHdatabase() {
    echo -e "$schema setup times:\t${runtime},\t${createTime},\t${indexTime},\t${loadTime},\t${compactTime},\t${statsTime},\t${countTime}"
 }
 
-# generate query files for this schema
-genTPCHqueries() {
+# replace templates with the schema value for this run
+genQueries() {
   local schema=$1
   local i
 
-  for i in `seq -w $TPCHMIN $TPCHMAX`; do
+  debug generating query sql for $schema
+
+  for i in `seq -w $BENCHMIN $BENCHMAX`; do
     #debug adding $schema for ${i}
-    fillTemplate "query-${i}.sql" $schema $scale
+    fillQueryTemplate "query-${i}.sql" $schema $scale
   done
 }
 
-runTPCHQueries() {
-  local schema=$1
-  local i
+runQueries() {
+   local schema=$1
+   local i
 
-  for i in `seq -w $TPCHMIN $TPCHMAX`; do
-    if [[ "$SET" == "good" ]]; then
-       if [ "${i}" = "08" ] || [ "${i}" = "18" ] || [ "${i}" = "20" ]; then
-          message "Set is $SET, so skipping TPCH query ${i}"
-          continue
-       fi
-    elif [[ "$SET" == "errors" ]]; then
-       if [ "${i}" != "08" ] && [ "${i}" != "18" ] && [ "${i}" != "20" ]; then
-          message "Set is $SET, so skipping TPCH query ${i}"
-          continue
-       fi
-    fi
-    message "Running TPCH query ${i} at scale $SCALE"
-    runQuery "query-${i}.sql"
-  done
-}
+   if [[ "$SETSTYLE" == "numbers" ]]; then
+      message  Running benchmark $BENCH with query set $SET
+      # split on comma
+      local qry
+      for qry in $(echo $SET | sed "s/,/ /g"); do
+         message "Running $BENCH query $qry at scale $SCALE"
+         runQuery "query-${qry}.sql"
+      done
 
-checkTPCHresults() {
-  local schema=$1
-  local iter=$2
+   else  # evaluate SETSTYLE words
+      for i in `seq -w $BENCHMIN $BENCHMAX`; do
+         if [[ "$BENCH" == "TPCH" ]]; then
+            if [[ "$SET" == "good" ]]; then
+               if [[ "$i" == "08" || "$i" == "18" || "$i" == "20" ]]; then
+                  message "Set is $SET, so skipping TPCH query ${i}"
+                  continue
+               fi
+            elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then
+               if [[ "$i" != "08" && "$i" != "18" && "$i" != "20" ]]; then
+                  message "Set is $SET, so skipping TPCH query ${i}"
+                  continue
+               fi
+            fi
+         elif [[ "$BENCH" == "TPCDS" ]]; then
+		    if [[ "$SET" == "good" ]]; then  # see SPLICE tickets 1677, 1679, 1008, 1020, 1016, 1017, 1022
+		       if [[ "$i" == "04" || "$i" == "05" || "$i" == "13" || "$i" == "24" || "$i" == "27" || "$i" == "36" || "$i" == "41" || \
+                             "$i" == "51" || "$i" == "53" || "$i" == "63" || "$i" == "70" || "$i" == "85" || "$i" == "86" || "$i" == "87" || \
+                             "$i" == "88" || "$i" == "89" || "$i" == "90" || "$i" == "96" || "$i" == "97" || "$i" == "98" || "$i" == "99" || \
+			     "$i" == "10" || "$i" == "12" || "$i" == "16" || "$i" == "57" || "$i" == "69" || "$i" == "72" || \
+			     "$i" == "14" || "$i" == "48" || "$i" == "64" || "$i" == "74" || \
+			     "$i" == "11" || "$i" == "35" || "$i" == "95" ]]; then
+			  message "Set is $SET, so skipping TPCH query ${i}"
+			  continue
+		       fi
+		    elif [[ "$SET" == "snow" ]]; then # the snowflake 14 - see DB-7892 except q64
+		       if [[ "$i" != "03" && "$i" != "07" && "$i" != "19" && "$i" != "23" && "$i" != "34" && \
+			     "$i" != "36" && "$i" != "42" && "$i" != "52" && "$i" != "53" && "$i" != "55" && \
+			     "$i" != "59" && "$i" != "89" ]]; then
+			  message "Set is $SET, so skipping TPCH query ${i}"
+			  continue
+		       fi
+		    elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1677, 1679, 1008, 1020, 1016, 1017, 1022
+		       if [[ "$i" != "04" && "$i" != "05" && "$i" != "13" && "$i" != "24" && "$i" != "27" && "$i" != "36" && "$i" != "41" && \
+                             "$i" != "51" && "$i" != "53" && "$i" != "63" && "$i" != "70" && "$i" != "85" && "$i" != "86" && "$i" != "87" && \
+                             "$i" != "88" && "$i" != "89" && "$i" != "90" && "$i" != "96" && "$i" != "97" && "$i" != "98" && "$i" != "99" && \
+		             "$i" != "10" && "$i" != "12" && "$i" != "16" && "$i" != "57" && "$i" != "69" && "$i" != "72" && \
+			     "$i" != "14" && "$i" != "48" && "$i" != "64" && "$i" != "74" && \
+			     "$i" != "11" && "$i" != "35" && "$i" != "95" ]]; then
+			  message "Set is $SET, so skipping TPCH query ${i}"
+			  continue
+		       fi
+		    fi
+		 fi
+		 message "Running $BENCH query ${i} at scale $SCALE"
+		 runQuery "query-${i}.sql"
+	      done
+	   fi
+	}
 
-  local -a results
+	checkBenchResults() {
+	  local schema=$1
+	  local iter=$2
 
-  local i 
-  local j=0
-  for i in `seq -w $TPCHMIN $TPCHMAX`; do
-    let j++
-    local -i errCount=$(checkQueryError "${LOGDIR}/query-${i}.out")
-    #debug checkOneTPCH errCount $errCount
-    if [[ $errCount -eq 0 ]]; then
-      local time=$(checkQueryTime "${LOGDIR}/query-${i}.out")
-      if [[ "$time" != "" ]]; then
-        message "$SCHEMA query-${i}.sql took $time milliseconds"
-        results[$j]=$time
-      else
-        message "$SCHEMA query-${i}.sql no errors and no time"
-        results[$j]="Nan"
-      fi
-    else
-      message "$SCHEMA query-${i}.sql had $errCount errors"
-      results[$j]="Err"
-    fi
-  done
+	  local -a results
 
-  # loop over the variable set of results
-  echo -n "$SCHEMA results"
-  if [[ "$iter" != "0" ]]; then
-     echo -n " for run $iter"
-  fi
-  echo -n ": "
-  local -i k=1
-  while [ $k -le $j ]; do
-    if (( $k == $j )); then
-      echo ${results[$k]}
-    else 
-      echo -ne "${results[$k]}, "
-    fi
-    let k++
-  done
+	  # TODO: handle SETSTYLE adhoc and sets
 
-}
+	  local i
+	  local j=0
+	  for i in `seq -w $BENCHMIN $BENCHMAX`; do
+	    let j++
+	    local -i errCount=$(checkQueryError "${LOGDIR}/query-${i}.out")
+	    #debug checkBenchResults errCount $errCount
+	    if [[ $errCount -eq 0 ]]; then
+	      local time=$(checkQueryTime "${LOGDIR}/query-${i}.out")
+	      if [[ "$time" != "" ]]; then
+		message "$SCHEMA query-${i}.sql took $time milliseconds"
+		results[$j]=$time
+	      else
+		message "$SCHEMA query-${i}.sql no errors and no time"
+		results[$j]="Nan"
+	      fi
+	    else
+	      message "$SCHEMA query-${i}.sql had $errCount errors"
+	      results[$j]="Err"
+	    fi
+	  done
 
-# TOODO: iterate over many results
-# checkTPCHOutputs() {
-# compute min/max/avg/stddev
-# TOODO: consider global results 2-dimensional array?
-# RESULTS[$i][0] = name
-# RESULTS[$i][1] = count
-# RESULTS[$i][2] = sum
-# RESULTS[$i][3] = sumsq
-# }
+	  # loop over the variable set of results
+	  echo -n "$SCHEMA results"
+	  if [[ "$iter" != "0" ]]; then
+	     echo -n " for run $iter"
+	  fi
+	  echo -n ": "
+	  local -i k=1
+	  while [ $k -le $j ]; do
+	    if (( $k == $j )); then
+	      echo ${results[$k]}
+	    else
+	      echo -ne "${results[$k]}, "
+	    fi
+	    let k++
+	  done
 
-# TOODO: output result as many-row csv file
-# test_run.csv
-#Time	Query	Iteration	Status	Error code	Error msg	Elapsed
+	}
 
-# TOODO: consider pushing to s3
-# s3:splice-performance/ {run,test_run,test_cluster}
-# possibly put in a new place to start
+	# TOODO: iterate over many results
+	# checkTPCHOutputs() {
+	# compute min/max/avg/stddev
+	# TOODO: consider global results 2-dimensional array?
+	# RESULTS[$i][0] = name
+	# RESULTS[$i][1] = count
+	# RESULTS[$i][2] = sum
+	# RESULTS[$i][3] = sumsq
+	# }
 
-# TOODO: consider getting a unique id for build run from groovy script in jenkins
+	# TOODO: output result as many-row csv file
+	# test_run.csv
+	#Time	Query	Iteration	Status	Error code	Error msg	Elapsed
 
-#============
-# Sanity Tests
+	# TOODO: consider pushing to s3
+	# s3:splice-performance/ {run,test_run,test_cluster}
+	# possibly put in a new place to start
 
-if [[ ! -d ${BASEDIR}templates ]]; then
-  echo "Error: ${BASEDIR}templates must be present"
-  exit 2
-fi
+	# TOODO: consider getting a unique id for build run from groovy script in jenkins
 
-# Test for sqlshell
-SQLSHELL="/sqlshell/sqlshell.sh"
-if [[ ! -f $SQLSHELL ]]; then
-   echo "Error: could not find sqlshell <$SQLSHELL>"
-   exit 2
-fi
+	#============
+	# Sanity Tests
 
-# Test that we can connect to a db
-testQry="testQry.sql"
-testOut="testOut.txt"
-echo -e "elapsedtime on;\nselect count(1) from sys.systables;" > $SQLDIR/$testQry
-$SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o ${LOGDIR}/$testOut
-if [[ "$?" != "0" ]]; then
-  echo "Error: sqlshell test failed for $SQLSHELL at $JDBC_URL" 
-  exit 3
-elif (( $DEBUG )); then
-  message "Test query results follow"
-  cat ${LOGDIR}/$testOut
-  echo
-fi
+	if [[ ! -d ${BASEDIR}${BENCHMARK}/templates ]]; then
+	  echo "Error: ${BASEDIR}${BENCHMARK}/templates must be present"
+	  exit 2
+	fi
 
-debug check that runQuery succeeds
-runQuery $testQry
-testOut="$LOGDIR/${testQry//sql/out}"
-if [[ ! -f $testOut ]]; then
-   echo "Error: runQuery did not produce output!"
-   exit 3
-fi
+	# Test for sqlshell
+	SQLSHELL="/sqlshell/sqlshell.sh"
+	if [[ ! -f $SQLSHELL ]]; then
+	   echo "Error: could not find sqlshell <$SQLSHELL>"
+	   exit 2
+	fi
 
-# check for Errors on testQry
-testErr=$(checkQueryError $testOut)
-if [[ $testErr -ne  0 ]]; then
-   echo "Error: runQuery had errors on testQry"
-  if (( $DEBUG )); then
-    cat $testOut
-    echo
-  fi
-  exit 3
-fi
+	# Test that we can connect to a db
+	testQry="testQry.sql"
+	testOut="testOut.txt"
+	echo -e "elapsedtime on;\nselect count(1) from sys.systables;" > $SQLDIR/$testQry
+	$SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o ${LOGDIR}/$testOut
+	if [[ "$?" != "0" ]]; then
+	  echo "Error: sqlshell test failed for $SQLSHELL at $JDBC_URL" 
+	  exit 3
+	elif (( $DEBUG )); then
+	  message "Test query results follow"
+	  cat ${LOGDIR}/$testOut
+	  echo
+	fi
 
-#============
-# Main
+	debug check that runQuery succeeds
+	runQuery $testQry
+	testOut="$LOGDIR/${testQry//sql/out}"
+	if [[ ! -f $testOut ]]; then
+	   echo "Error: runQuery did not produce output!"
+	   exit 3
+	fi
 
-debug $0 entering Main for $BENCH with scale $SCALE schema $SCHEMA iterations $ITER
+	# check for Errors on testQry
+	testErr=$(checkQueryError $testOut)
+	if [[ $testErr -ne  0 ]]; then
+	   echo "Error: runQuery had errors on testQry"
+	  if (( $DEBUG )); then
+	    cat $testOut
+	    echo
+	  fi
+	  exit 3
+	fi
+
+	#============
+	# Main
+
+	debug $0 entering Main for $BENCH with scale $SCALE schema $SCHEMA iterations $ITER
 
 
-if [[ "$BENCH" == "TPCH" ]]; then
+	if [[ "$BENCH" == "TPCH" || "$BENCH" == "TPCDS" ]]; then
 
-  # check for SCHEMA; if not present, make it
-  if ( ! validateTPCHSchema $SCHEMA $SCALE ) then
-    createTPCHdatabase $SCHEMA $SCALE $MODE
-  fi
- 
-  # bomb out if schema still not present
-  if ( ! validateTPCHSchema $SCHEMA $SCALE ) then
-    message "Error: the schema $SCHEMA has failed validation"
-    exit 1
-  fi
- 
-  # generate TPCH query files for this SCHEMA
-  genTPCHqueries $SCHEMA
+	  # check for SCHEMA; if not present, make it
+	  if ( ! validateSchema $BENCH $SCHEMA $SCALE ) then
+	    createDatabase $SCHEMA $SCALE $MODE
+	  fi
 
-  # TOODO: explain queries
-  # TOODO: implement TPCH validation checks
+	  # bomb out if schema still not present
+	  if ( ! validateSchema $BENCH $SCHEMA $SCALE ) then
+	    message "Error: the schema $SCHEMA has failed validation"
+	    exit 1
+	  fi
 
-  # now start running
-  if [[ $ITER -le 1 ]]; then
-    echo "Handle single run"
-    runTPCHQueries $SCHEMA
+	  # TODO: generate explain statements
+	  # TODO: gather one explain plan for each query
 
-    # output single results
-    checkTPCHresults $SCHEMA 0
+	  # generate query files for this SCHEMA
+	  genQueries $SCHEMA
 
-  else # many iterations
+	  # TODO: implement TPCH validation checks
 
-    declare -i i=1
-    while [ $i -le $ITER ]; do
-      loopStart=$(now)
+	  # now start running
+	  if [[ $ITER -le 1 ]]; then
+	    echo "Handle single run"
+	    runQueries $SCHEMA
 
-      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD-iter$i"
-      mkdir -p $LOGDIR
+	    # output single results
+	    checkBenchResults $SCHEMA 0
 
-      debug running $SCHEMA iter$i at $loopStart
-      runTPCHQueries $SCHEMA
-      checkTPCHresults $SCHEMA $i
+	  else # many iterations
 
-      let i++
-    done
-    
-    # TOODO: behavior: if iterations > 1, provide avg/min/max/stddev
-  fi
+	    declare -i i=1
+	    while [ $i -le $ITER ]; do
+	      loopStart=$(now)
 
-  # possibly send email?
-  # possibly write to a table?
+	      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD-iter$i"
+	      mkdir -p $LOGDIR
 
-  # TOODO: document docker.for.mac.localhost
+	      debug running $SCHEMA iter$i at $loopStart
+	      runQueries $SCHEMA
+	      checkBenchResults $SCHEMA $i
 
-elif [[ "$BENCH" == "TPCC" ]]; then
+	      let i++
+	    done
 
-  # TOODO: handle benchmark other than TPCH
-  echo "Sorry, TPCC is not yet implemented"
+	    # TOODO: behavior: if iterations > 1, provide avg/min/max/stddev
+	  fi
 
-fi
+	elif [[ "$BENCH" == "TPCC" || "$BENCH" == "HTAP"  ]]; then
 
-ENDS=`date +%s`
-TOTALS=$((ENDS-STARTS))
+	  # TOODO: handle benchmarks which run transactional drivers *and* analytic queries
+	  echo "Sorry, $BENCH is not yet implemented"
+
+	fi
+
+	# possibly send email?
+	# possibly write to a table?
+
+	# TOODO: document docker.for.mac.localhost
+
+	ENDS=`date +%s`
+	TOTALS=$((ENDS-STARTS))
 echo Total runtime was $TOTALS seconds
