@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 99
 select top 100 
    substr(w_warehouse_name,1,20)
   ,sm_type
@@ -34,5 +33,3 @@ order by substr(w_warehouse_name,1,20)
         ,sm_type
         ,cc_name
 ;
-
-

@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 97
 with ssci as (
 select ss_customer_sk customer_sk
       ,ss_item_sk item_sk
@@ -24,5 +23,3 @@ group by cs_bill_customer_sk
 from ssci full outer join csci on (ssci.customer_sk=csci.customer_sk
                                and ssci.item_sk = csci.item_sk)
 ;
-
-

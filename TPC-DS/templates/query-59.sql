@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 59
 with wss as 
  (select d_week_seq,
         ss_store_sk,
@@ -43,5 +42,3 @@ with wss as
    and d_week_seq1=d_week_seq2-52
  order by s_store_name1,s_store_id1,d_week_seq1
 ;
-
-

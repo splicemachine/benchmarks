@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 91
 select  
         cc_call_center_id Call_Center,
         cc_name Call_Center_Name,
@@ -30,5 +29,3 @@ and     hd_buy_potential like '0-500%'
 and     ca_gmt_offset           = -7
 group by cc_call_center_id,cc_name,cc_manager,cd_marital_status,cd_education_status
 order by sum(cr_net_loss) desc;
-
-

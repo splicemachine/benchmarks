@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 86
 select top 100  
     sum(ws_net_paid) as total_sum
    ,i_category

@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 93
 select top 100 ss_customer_sk
             ,sum(act_sales) sumsales
       from (select ss_item_sk
@@ -17,5 +16,3 @@ select top 100 ss_customer_sk
       group by ss_customer_sk
       order by sumsales, ss_customer_sk
 ;
-
-

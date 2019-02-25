@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 96
 select top 100 count(*) 
 from store_sales
     ,household_demographics 
@@ -15,5 +14,3 @@ where ss_sold_time_sk = time_dim.t_time_sk
     and store.s_store_name = 'ese'
 order by count(*)
 ;
-
-

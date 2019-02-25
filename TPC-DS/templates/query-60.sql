@@ -1,6 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
+-- TPC-DS QUERY 60
 
 with ss as (
  select

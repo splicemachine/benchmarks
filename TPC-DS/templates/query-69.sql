@@ -1,6 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
+-- TPC-DS QUERY 69
 
 select top 100 
   cd_gender,

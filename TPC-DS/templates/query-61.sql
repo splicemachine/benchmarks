@@ -1,6 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
+-- TPC-DS QUERY 61
 
 select top 100 promotions,total,cast(promotions as decimal(15,4))/cast(total as decimal(15,4))*100
 from

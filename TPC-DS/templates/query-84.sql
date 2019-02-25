@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 84
 select top 100 c_customer_id as customer_id
        ,c_last_name || ', ' || c_first_name as customername
  from customer

@@ -1,6 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
+-- TPC-DS QUERY 78
 
 with ws as
   (select d_year AS ws_sold_year, ws_item_sk,

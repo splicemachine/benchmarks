@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 64
 with cs_ui as
  (select cs_item_sk
         ,sum(cs_ext_list_price) as sale,sum(cr_refunded_cash+cr_reversed_charge+cr_store_credit) as refund
@@ -31,12 +30,13 @@ cross_sales as
      ,sum(ss_wholesale_cost) s1
      ,sum(ss_list_price) s2
      ,sum(ss_coupon_amt) s3
-  FROM   store_sales
+  FROM --splice-properties joinOrder=fixed
+         store_sales
         ,store_returns
         ,cs_ui
-        ,date_dim d1
-        ,date_dim d2
-        ,date_dim d3
+        ,date_dim d1/* --splice-properties joinStrategy=broadcast*/
+        ,date_dim d2/* --splice-properties joinStrategy=broadcast*/
+        ,date_dim d3/* --splice-properties joinStrategy=broadcast*/
         ,store
         ,customer
         ,customer_demographics cd1
@@ -118,5 +118,3 @@ where cs1.item_sk=cs2.item_sk and
 order by cs1.product_name
        ,cs1.store_name
        ,cs2.cnt;
-
-

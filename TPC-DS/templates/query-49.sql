@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 49
 select top 100 
  'web' as channel
  ,web.item
@@ -126,5 +125,3 @@ select top 100
  )
  order by 1,4,5
  ;
-
-

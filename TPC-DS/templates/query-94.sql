@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 94
 select top 100 
    count(distinct ws_order_number) as "order count"
   ,sum(ws_ext_ship_cost) as "total shipping cost"
@@ -28,5 +27,3 @@ and not exists(select *
                where ws1.ws_order_number = wr1.wr_order_number)
 order by 1
 ;
-
-

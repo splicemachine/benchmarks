@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 53
 select top 100 * from 
 (select i_manufact_id,
 sum(ss_sales_price) sum_sales,
@@ -27,5 +26,3 @@ order by avg_quarterly_sales,
 	 sum_sales,
 	 i_manufact_id
 ;
-
-

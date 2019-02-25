@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 52
 select top 100 dt.d_year
  	,item.i_brand_id brand_id
  	,item.i_brand brand
@@ -21,5 +20,3 @@ select top 100 dt.d_year
  	,ext_price desc
  	,brand_id
  ;
-
-

@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 98
 select i_item_id
       ,i_item_desc 
       ,i_category 
@@ -32,6 +31,5 @@ order by
         ,i_class
         ,i_item_id
         ,i_item_desc
-        ,revenueratio;
-
-
+        ,revenueratio
+;

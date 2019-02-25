@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 55
 select top 100 i_brand_id brand_id, i_brand brand,
  	sum(ss_ext_sales_price) ext_price
  from date_dim, store_sales, item
@@ -13,5 +12,3 @@ select top 100 i_brand_id brand_id, i_brand brand,
  group by i_brand, i_brand_id
  order by ext_price desc, i_brand_id
  ;
-
-

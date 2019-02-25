@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 82
 select top 100 i_item_id
        ,i_item_desc
        ,i_current_price

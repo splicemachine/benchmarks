@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 44
 select top 100 asceding.rnk, i1.i_product_name best_performing, i2.i_product_name worst_performing
 from(select *
      from (select item_sk,rank() over (order by rank_col asc) rnk
@@ -34,5 +33,3 @@ where asceding.rnk = descending.rnk
   and i2.i_item_sk=descending.item_sk
 order by asceding.rnk
 ;
-
-

@@ -1,7 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
-
+-- TPC-DS QUERY 50
 select top 100 
    s_store_name
   ,s_company_id
@@ -58,5 +57,3 @@ order by s_store_name
         ,s_state
         ,s_zip
 ;
-
-

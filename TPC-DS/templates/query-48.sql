@@ -1,6 +1,6 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
--- TPC-DS QUERY 
+-- TPC-DS QUERY 48
 
 select sum (ss_quantity)
  from store_sales, store, customer_demographics, customer_address, date_dim
