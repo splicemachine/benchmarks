@@ -40,7 +40,11 @@ messageBegin() {
   local msg="$*"
 
   if (( $VERBOSE )); then
-    echo -n "$msg"
+    echo -ne "$msg"
+  fi
+  if (( $DEBUG )); then
+    # need a newline to fix messaging when debug to stderr overwrites stdout
+    echo
   fi
 }
 
@@ -355,6 +359,7 @@ runQuery() {
    local queryfile=${SQLDIR}/${1}
    local outfile=${LOGDIR}/${1//sql/out}
 
+   # too verbose, so got rid of this
    #message running $queryfile
    if [[ $TIMEOUT -eq 0 ]]; then
       $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
@@ -492,11 +497,27 @@ checkIndexCount() {
    fi
 } 
 
-# check specific dataset table counts
-checkTPCHTablesCounts() {
+checkTableRowCounts() {
    local scale=$1
    local outfile=$2
 
+   if [[ "$BENCH" == "TPCH" ]]; then
+      checkTPCHTableRowCounts $scale $outfile
+      return $?
+   elif [[ "$BENCH" == "TPCDS" ]]; then
+      # TODO: implement checkTPCDSTableRowCounts
+      return 0
+   else
+      return 1
+   fi
+}
+
+# check specific dataset table counts
+checkTPCHTableRowCounts() {
+   local scale=$1
+   local outfile=$2
+
+   debug entering checkTPCHTableRowCounts at scale $scale checking $outfile
    local tables="CUSTOMER LINEITEM NATION ORDERS PART PARTSUPP REGION SUPPLIER"
 
    # TOODO: figure out how to do multi-dimensional bash arrays
@@ -513,7 +534,7 @@ checkTPCHTablesCounts() {
    for table in $tables; do
       num=$(grep -A2 "^${table}[[:space:]]*$" ${LOGDIR}/../$outfile | tail -1| awk '{print $1}')
 
-      #debug compare $num vs ${answers1[$i]} from $outfile
+      debug checkTPCHTableRowCounts: compare $num vs ${answers1[$i]} from $outfile
       if [[ "$scale" == "1" ]]; then
          if [[ "${answers1[$i]}" != "$num" ]]; then
             err=$((err+1))
@@ -537,10 +558,10 @@ checkTPCHTablesCounts() {
    done
 
    if [[ $err -gt 0 ]]; then
-      debug checkTPCHTablesCounts returning 1
+      debug checkTPCHTableRowCounts returning 1
       return 1
    fi
-   debug checkTPCHTablesCounts returning 0
+   debug checkTPCHTableRowCounts returning 0
    return 0
 
 }
@@ -555,25 +576,8 @@ checkSchemaStats() {
    return 1
 }
 
+# validate that schema has the schema, tables and indexes; has stats and the right rowcounts
 validateSchema() {
-   local bench=$1
-   local schema=$2
-   local scale=$3
-
-   if [[ "$bench" == "TPCH" ]]; then
-      validateTPCHSchema $schema $scale
-      return $?
-   elif [[ "$bench" == "TPCDS" ]]; then
-      # TODO: implement validateTPCDSSchema
-      return 0
-   else
-      return 1
-   fi
-}
-
-
-# validate that schema has the right tables
-validateTPCHSchema() {
    local schema=$1
    local scale=$2
 
@@ -610,7 +614,7 @@ validateTPCHSchema() {
    fi
 
    # check that all the tables in setup-06-count.out have the 'right' counts
-   if ( ! checkTPCHTablesCounts $scale "setup-06-count.out"); then
+   if ( ! checkTableRowCounts $scale "setup-06-count.out"); then
       debug Schema $schema: counts mismatch
       return 1
    else
@@ -673,6 +677,8 @@ createDatabase() {
       message "Error making $TABLECNT tables on $schema"
       exit 1
    fi
+
+   # TOODO: ensure that no current load process is already running
 
    if [[ "$mode" == "linear" ]]; then
       fillQueryTemplate "setup-02-linear-import.sql" $schema $scale
@@ -759,10 +765,11 @@ createDatabase() {
    fi
 
    messageBegin "$schema: Counting tables . . ."
+   # TODO: move count tables to a subroutine
    fillQueryTemplate "setup-06-count.sql" $schema $scale
    runQuery "setup-06-count.sql"
    #HACK: copy setup-06-count.out to parent dir for future count checks
-   cp ${LOGDIR}/setup-06-count.out ${LOGDIR}/../
+   cp ${LOGDIR}/setup-06-count.out ${LOGDIR}/../$BENCH-setup-06-count.out
    #TOODO: remove HACK about setup-06-count.out
 
    local -i countTime=$(checkQueryTime "${LOGDIR}/setup-06-count.out")
@@ -774,7 +781,7 @@ createDatabase() {
    fi
 
    # check if the counts are accurate
-   if ( ! checkTPCHTablesCounts $scale "setup-06-count.out"); then
+   if ( ! checkTableRowCounts $scale "setup-06-count.out"); then
       message "Error: counts mismatched on $schema"
    else
       message "Counts are correct on $schema at scale $scale"
@@ -818,12 +825,12 @@ runQueries() {
          if [[ "$BENCH" == "TPCH" ]]; then
             if [[ "$SET" == "good" ]]; then
                if [[ "$i" == "08" || "$i" == "18" || "$i" == "20" ]]; then
-                  message "Set is $SET, so skipping TPCH query ${i}"
+                  message "Set is $SET, so skipping $BENCH query ${i}"
                   continue
                fi
             elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then
                if [[ "$i" != "08" && "$i" != "18" && "$i" != "20" ]]; then
-                  message "Set is $SET, so skipping TPCH query ${i}"
+                  message "Set is $SET, so skipping $BENCH query ${i}"
                   continue
                fi
             fi
@@ -835,14 +842,14 @@ runQueries() {
 			     "$i" == "10" || "$i" == "12" || "$i" == "16" || "$i" == "57" || "$i" == "69" || "$i" == "72" || \
 			     "$i" == "14" || "$i" == "48" || "$i" == "64" || "$i" == "74" || \
 			     "$i" == "11" || "$i" == "35" || "$i" == "95" ]]; then
-			  message "Set is $SET, so skipping TPCH query ${i}"
+			  message "Set is $SET, so skipping $BENCH query ${i}"
 			  continue
 		       fi
 		    elif [[ "$SET" == "snow" ]]; then # the snowflake 14 - see DB-7892 except q64
 		       if [[ "$i" != "03" && "$i" != "07" && "$i" != "19" && "$i" != "23" && "$i" != "34" && \
 			     "$i" != "36" && "$i" != "42" && "$i" != "52" && "$i" != "53" && "$i" != "55" && \
 			     "$i" != "59" && "$i" != "89" ]]; then
-			  message "Set is $SET, so skipping TPCH query ${i}"
+			  message "Set is $SET, so skipping $BENCH query ${i}"
 			  continue
 		       fi
 		    elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1677, 1679, 1008, 1020, 1016, 1017, 1022
@@ -852,7 +859,7 @@ runQueries() {
 		             "$i" != "10" && "$i" != "12" && "$i" != "16" && "$i" != "57" && "$i" != "69" && "$i" != "72" && \
 			     "$i" != "14" && "$i" != "48" && "$i" != "64" && "$i" != "74" && \
 			     "$i" != "11" && "$i" != "35" && "$i" != "95" ]]; then
-			  message "Set is $SET, so skipping TPCH query ${i}"
+			  message "Set is $SET, so skipping $BENCH query ${i}"
 			  continue
 		       fi
 		    fi
@@ -987,12 +994,12 @@ runQueries() {
 	if [[ "$BENCH" == "TPCH" || "$BENCH" == "TPCDS" ]]; then
 
 	  # check for SCHEMA; if not present, make it
-	  if ( ! validateSchema $BENCH $SCHEMA $SCALE ) then
+	  if ( ! validateSchema $SCHEMA $SCALE ) then
 	    createDatabase $SCHEMA $SCALE $MODE
 	  fi
 
 	  # bomb out if schema still not present
-	  if ( ! validateSchema $BENCH $SCHEMA $SCALE ) then
+	  if ( ! validateSchema $SCHEMA $SCALE ) then
 	    message "Error: the schema $SCHEMA has failed validation"
 	    exit 1
 	  fi
