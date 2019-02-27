@@ -192,7 +192,7 @@ QRY11="0.0001000000" # defaults to tpch1g
 
 # check for only valid scales
 if [[ "$BENCH" == "TPCH"  && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" || \
-      "$BENCH" == "TPCDS" && "$SCALE" != "1" || \
+      "$BENCH" == "TPCDS" && "$SCALE" != "1" && "$SCALE" != "100" || \
       "$BENCH" == "TPCC"  && "$SCALE" != "1" || \
       "$BENCH" == "HTAP"  && "$SCALE" != "25" ]]; then
    echo "Error: scale of $SCALE is not (yet) supported for $BENCH!"
