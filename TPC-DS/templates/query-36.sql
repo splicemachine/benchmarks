@@ -1,7 +1,11 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 36
-select top 100 
+select top 100 *
+from
+(
+select 
+
     sum(ss_net_profit)/sum(ss_ext_sales_price) as gross_margin
    ,i_category
    ,i_class
@@ -23,6 +27,7 @@ select top 100
  and s_state in ('SD','TN','AL','AL',
                  'SD','SD','SD','SD')
  group by rollup(i_category,i_class)
+) a
  order by
    lochierarchy desc
   ,case when lochierarchy = 0 then i_category end
