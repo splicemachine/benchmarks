@@ -502,7 +502,9 @@ checkTableRowCounts() {
    local outfile=$2
 
    if [[ "$BENCH" == "TPCH" ]]; then
-      checkTPCHTableRowCounts $scale $outfile
+      # HACK: add benchmark to count filename
+      # TODO: remove hack, separate one-time 'setup' logs from 'run logs'
+      checkTPCHTableRowCounts $scale ${BENCH}-${outfile}
       return $?
    elif [[ "$BENCH" == "TPCDS" ]]; then
       # TODO: implement checkTPCDSTableRowCounts
