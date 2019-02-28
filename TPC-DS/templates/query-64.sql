@@ -34,9 +34,9 @@ cross_sales as
          store_sales
         ,store_returns
         ,cs_ui
-        ,date_dim d1/* --splice-properties joinStrategy=broadcast*/
-        ,date_dim d2/* --splice-properties joinStrategy=broadcast*/
-        ,date_dim d3/* --splice-properties joinStrategy=broadcast*/
+        ,date_dim d1 --splice-properties joinStrategy=broadcast
+        ,date_dim d2 --splice-properties joinStrategy=broadcast
+        ,date_dim d3 --splice-properties joinStrategy=broadcast
         ,store
         ,customer
         ,customer_demographics cd1
