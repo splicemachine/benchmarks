@@ -190,6 +190,7 @@ fi
 # TOODO: write a routine for this calculation if it is reusable
 QRY11="0.0001000000" # defaults to tpch1g
 
+debug checking scale $SCALE for bench $BENCH
 # check for only valid scales
 if [[ "$BENCH" == "TPCH"  && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" || \
       "$BENCH" == "TPCDS" && "$SCALE" != "1" && "$SCALE" != "100" || \
@@ -208,13 +209,6 @@ elif [[ "$SCALE" == "1000" ]]; then
   QRY11="0.0000001000"
 fi
 
-
-if [[ "$BENCH" == "TPCDS" && "$SCALE" != "1" ]]; then
-   echo "Error: scale of $SCALE is not supported for $BENCH!"
-   usage
-   exit 2
-fi
-
 # defaults for TPCH
 TABLECNT=8
 INDEXCNT=4
@@ -222,7 +216,7 @@ BENCHMIN=1
 BENCHMAX=22
 
 if [[ "$BENCH" == "TPCDS" ]]; then
-  TABLECNT=25
+  TABLECNT=24
   INDEXCNT=0
   BENCHMIN=1
   BENCHMAX=99
@@ -664,6 +658,8 @@ createDatabase() {
    local -i errCount
 
    debug "Creating $BENCH db at $schema for scale $scale using mode $mode"
+
+   # TODO: move logs for setup to a schema-specific subdir
 
    messageBegin "$schema: Creating tables . . ."
    fillQueryTemplate "setup-01-tables.sql" $schema $scale
