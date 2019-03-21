@@ -32,13 +32,20 @@ from (select item_sk
          over (partition by item_sk order by d_date rows between unbounded preceding and current row) web_cumulative
      ,max(store_sales)
          over (partition by item_sk order by d_date rows between unbounded preceding and current row) store_cumulative
-     from (select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
+     from (
+select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
                  ,case when web.d_date is not null then web.d_date else store.d_date end d_date
                  ,web.cume_sales web_sales
                  ,store.cume_sales store_sales
-           from web_v1 web full outer join store_v1 store on (web.item_sk = store.item_sk
-                                                          and web.d_date = store.d_date)
-          )x )y
+           from web_v1 web left outer join store_v1 store on (web.item_sk = store.item_sk and web.d_date = store.d_date)
+union all
+select case when web.item_sk is not null then web.item_sk else store.item_sk end item_sk
+                 ,case when web.d_date is not null then web.d_date else store.d_date end d_date
+                 ,web.cume_sales web_sales
+                 ,store.cume_sales store_sales
+           from store_v1 store left outer join web_v1 web on (web.item_sk = store.item_sk and web.d_date = store.d_date) where web.item_sk is null
+          )x
+ )y
 where web_cumulative > store_cumulative
 order by item_sk
         ,d_date
