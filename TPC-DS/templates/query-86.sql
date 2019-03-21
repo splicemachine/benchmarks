@@ -7,16 +7,16 @@ select  total_sum
    ,lochierarchy
    ,rank_within_parent
 from(
- 	select top 100
+  select top 100
     sum(ws_net_paid) as total_sum
    ,i_category
    ,i_class
    ,grouping(i_category)+grouping(i_class) as lochierarchy
    ,case when grouping(i_category)+grouping(i_class) = 0 then i_category end  as loch_ctegory
    ,rank() over (
- 	partition by grouping(i_category)+grouping(i_class),
- 	case when grouping(i_class) = 0 then i_category end
- 	order by sum(ws_net_paid) desc) as rank_within_parent
+      partition by grouping(i_category)+grouping(i_class),
+      case when grouping(i_class) = 0 then i_category end
+      order by sum(ws_net_paid) desc) as rank_within_parent
  from
     web_sales
    ,date_dim       d1
@@ -31,6 +31,4 @@ from(
   loch_ctegory,
    rank_within_parent
 ) as a
- ;
-
-
+;
