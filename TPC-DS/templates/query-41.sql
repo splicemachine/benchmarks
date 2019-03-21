@@ -2,14 +2,13 @@ SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 41
 --select top 100 distinct(i_product_name)
-select top 100 i_product_name
- from item i1
- where i_manufact_id between 742 and 742+40 
-   and (select count(*) as item_cnt
+ select top 100 i_product_name
+ from item i1 ,
+ (select distinct i_manufact
         from item
-        where (i_manufact = i1.i_manufact and
-        ((i_category = 'Women' and 
-        (i_color = 'orchid' or i_color = 'papaya') and 
+        where (
+        ((i_category = 'Women' and
+        (i_color = 'orchid' or i_color = 'papaya') and
         (i_units = 'Pound' or i_units = 'Lb') and
         (i_size = 'petite' or i_size = 'medium')
         ) or
@@ -28,9 +27,9 @@ select top 100 i_product_name
         (i_units = 'Bunch' or i_units = 'Gross') and
         (i_size = 'petite' or i_size = 'medium')
         ))) or
-       (i_manufact = i1.i_manufact and
-        ((i_category = 'Women' and 
-        (i_color = 'salmon' or i_color = 'midnight') and 
+       (
+        ((i_category = 'Women' and
+        (i_color = 'salmon' or i_color = 'midnight') and
         (i_units = 'Oz' or i_units = 'Box') and
         (i_size = 'petite' or i_size = 'medium')
         ) or
@@ -48,7 +47,9 @@ select top 100 i_product_name
         (i_color = 'metallic' or i_color = 'forest') and
         (i_units = 'Gram' or i_units = 'Ounce') and
         (i_size = 'petite' or i_size = 'medium')
-        )))) > 0
- group by i_product_name
- order by i_product_name
+        ))) ) AS item_cnt
+    where  i_manufact_id between 742 and 742+40
+    and i1.i_manufact = item_cnt.i_manufact
+    group by i_product_name
+ 	order by i_product_name
  ;
