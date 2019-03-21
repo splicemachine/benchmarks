@@ -18,7 +18,7 @@ with ssr as
      where s_store_sk = ss_store_sk and
            ss_sold_date_sk = d_date_sk
            and d_date between cast('1998-08-04' as date)
-           and (cast('1998-08-18' as date))
+           and (cast('1998-08-04' as date) + 14 )
 
      union all
      select s_store_id,
@@ -31,7 +31,7 @@ with ssr as
      where s_store_sk = sr_store_sk and
            sr_returned_date_sk = d_date_sk
            and d_date between cast('1998-08-04' as date)
-           and (cast('1998-08-18' as date))
+           and (cast('1998-08-04' as date) + 14 )
    ) salesreturns
  group by s_store_id)
   ,
@@ -51,7 +51,7 @@ with ssr as
        from catalog_sales, date_dim, catalog_page
        where cs_sold_date_sk = d_date_sk
              and d_date between cast('1998-08-04' as date)
-             and (cast('1998-08-18' as date))
+             and (cast('1998-08-04' as date) + 14 )
              and cs_catalog_page_sk = cp_catalog_page_sk
        union all
        select cp_catalog_page_id,
@@ -63,7 +63,7 @@ with ssr as
        from catalog_returns, date_dim, catalog_page
        where cr_returned_date_sk = d_date_sk
              and d_date between cast('1998-08-04' as date)
-             and (cast('1998-08-18' as date))
+             and (cast('1998-08-04' as date) + 14 )
              and cp_catalog_page_sk = cr_catalog_page_sk
 
      ) salesreturns
@@ -85,7 +85,7 @@ with ssr as
        from web_sales, date_dim, web_site
        where ws_sold_date_sk = d_date_sk
              and d_date between cast('1998-08-04' as date)
-             and (cast('1998-08-18' as date))
+             and (cast('1998-08-04' as date) + 14 )
              and web_site_sk = ws_web_site_sk
 
        union all
@@ -100,7 +100,7 @@ with ssr as
                                                       and wr_order_number = ws_order_number), date_dim, web_site
        where wr_returned_date_sk = d_date_sk
              and d_date between cast('1998-08-04' as date)
-             and (cast('1998-08-18' as date))
+             and (cast('1998-08-04' as date) + 14 )
              and web_site_sk = ws_web_site_sk
 
      ) salesreturns
