@@ -1,3 +1,6 @@
+SET SCHEMA ##SCHEMA##;	
+elapsedtime on;	
+-- TPC-DS QUERY 05
 with ssr as
 (select s_store_id,
    sum(sales_price) as sales,
