@@ -14,9 +14,9 @@ from(
    ,grouping(i_category)+grouping(i_class) as lochierarchy
    ,case when grouping(i_category)+grouping(i_class) = 0 then i_category end  as loch_ctegory
    ,rank() over (
-      partition by grouping(i_category)+grouping(i_class),
-      case when grouping(i_class) = 0 then i_category end
-      order by sum(ws_net_paid) desc) as rank_within_parent
+       partition by grouping(i_category)+grouping(i_class),
+       case when grouping(i_class) = 0 then i_category end
+       order by sum(ws_net_paid) desc) as rank_within_parent
  from
     web_sales
    ,date_dim       d1
