@@ -12,7 +12,7 @@ with ssales as
       ,i_manager_id
       ,i_units
       ,i_size
-      ,sum(ss_sales_price) netpaid
+      ,sum(ss_net_paid) netpaid
 from store_sales
     ,store_returns
     ,store
@@ -26,7 +26,7 @@ where ss_ticket_number = sr_ticket_number
   and ss_store_sk = s_store_sk
   and c_birth_country = upper(ca_country)
   and s_zip = ca_zip
-and s_market_id=7
+and s_market_id=8
 group by c_last_name
         ,c_first_name
         ,s_store_name
@@ -42,12 +42,15 @@ select c_last_name
       ,s_store_name
       ,sum(netpaid) paid
 from ssales
-where i_color = 'orchid'
+where i_color = 'peach'
 group by c_last_name
         ,c_first_name
         ,s_store_name
 having sum(netpaid) > (select 0.05*avg(netpaid)
                                  from ssales)
+order by c_last_name
+        ,c_first_name
+        ,s_store_name
 ;
 with ssales as
 (select c_last_name
@@ -60,7 +63,7 @@ with ssales as
       ,i_manager_id
       ,i_units
       ,i_size
-      ,sum(ss_sales_price) netpaid
+      ,sum(ss_net_paid) netpaid
 from store_sales
     ,store_returns
     ,store
@@ -74,7 +77,7 @@ where ss_ticket_number = sr_ticket_number
   and ss_store_sk = s_store_sk
   and c_birth_country = upper(ca_country)
   and s_zip = ca_zip
-  and s_market_id = 7
+  and s_market_id = 8
 group by c_last_name
         ,c_first_name
         ,s_store_name
@@ -90,12 +93,15 @@ select c_last_name
       ,s_store_name
       ,sum(netpaid) paid
 from ssales
-where i_color = 'chiffon'
+where i_color = 'saddle'
 group by c_last_name
         ,c_first_name
         ,s_store_name
 having sum(netpaid) > (select 0.05*avg(netpaid)
                            from ssales)
+order by c_last_name
+        ,c_first_name
+        ,s_store_name
 ;
 
 
