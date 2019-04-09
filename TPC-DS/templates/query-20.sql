@@ -16,8 +16,7 @@ select top 100 i_item_id
    and i_category in ('Jewelry', 'Sports', 'Books')
    and cs_sold_date_sk = d_date_sk
  and d_date between cast('2001-01-12' as date) 
--- 				and (cast('2001-01-12' as date) + 30 days)
-			and (cast('2001-02-12' as date))
+			and (cast('2001-01-12' as date) + 30)
  group by i_item_id
          ,i_item_desc 
          ,i_category
