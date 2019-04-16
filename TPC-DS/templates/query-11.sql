@@ -1,7 +1,21 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 11
-with year_total as (
+
+CREATE TABLE year_total(
+    customer_id char(16)
+    ,customer_first_name char(20)
+    ,customer_last_name char(30)
+    ,customer_preferred_cust_flag char(1)
+    ,customer_birth_country varchar(20)
+    ,customer_login char(13)
+    ,customer_email_address char(50)
+    ,dyear integer
+    ,year_total integer
+    ,sale_type char(1)
+);
+
+INSERT INTO year_total(
  select c_customer_id customer_id
        ,c_first_name customer_first_name
        ,c_last_name customer_last_name
@@ -49,7 +63,8 @@ with year_total as (
          ,c_login
          ,c_email_address
          ,d_year
-         )
+);
+ 
   select top 100 
                   t_s_secyear.customer_id
                  ,t_s_secyear.customer_first_name
@@ -79,3 +94,8 @@ with year_total as (
          ,t_s_secyear.customer_last_name
          ,t_s_secyear.customer_email_address
 ;
+
+
+
+
+
