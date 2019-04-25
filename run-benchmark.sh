@@ -906,10 +906,12 @@ checkBenchResults() {
             else
 		        message "$SCHEMA query-${i}.sql no errors and no time"
 		        results[$j]="Nan"
+		        ${EXEC_STATUS[$bench]}="2"
             fi
 	    else
             message "$SCHEMA query-${i}.sql had $errCount errors"
             results[$j]="Err"
+            ${EXEC_STATUS[$bench]}="3"
 	    fi
     done
 
@@ -934,11 +936,10 @@ checkBenchResults() {
         local date=${EXEC_START_DATE[$bench]}
         local elapsed=${EXEC_TIME[$bench]}
         local status="PASS"
-        local errorCode="0"
-        if [[ ${EXEC_STATUS[$bench]} != 0 ]]; then
+        local errorCode=${EXEC_STATUS[$bench]}
+        if [[ $errorCode != 0 ]]; then
             status="FAIL"
             BENCH_PASS="FAIL"
-            errorCode="1"
         fi
 	    echo "$date|$bench|$iter|$status|$errorCode||$elapsed" >> ${LOGBASE}logs/test_run.csv
     done
@@ -993,42 +994,24 @@ checkBenchResults() {
 	  echo
 	fi
 
-#	debug check that runQuery succeeds
-#	runQuery $testQry
-#	if [[ ! -f $testOut ]]; then
-#	   echo "Error: runQuery did not produce output!"
-#	   exit 3
-#	fi
-
-	# check for Errors on testQry
-#	testErr=$(checkQueryError $testOut)
-#	if [[ $testErr -ne  0 ]]; then
-#	   echo "Error: runQuery had errors on testQry"
-#	  if (( $DEBUG )); then
-#	    cat $testOut
-#	    echo
-#	  fi
-#	  exit 3
-#	fi
-
-        # collect SpliceMachine info
-        echo -e "call syscs_util.syscs_get_version_info();" > $testQry
-        $SQLSHELL -q ${HOSTORURL} -f $testQry -o $testOut
-        if [[ "$?" != "0" ]]; then
-          echo "Error: sqlshell get_version_info failed for $SQLSHELL at $JDBC_URL"
-          exit 3
-        fi
-        while read -r line; do
-          if [[ "$line" = 'HOSTNAME'* ]]; then
-            read -r line
-            read -r line
-            SPLICEMACHINE_VERSION=$(echo $line | cut -d\| -f2 | cut -d- -f1)
-            SPLICEMACHINE_IMPL=$(echo $line | cut -d\| -f3)
-            break
-          fi
-        done < $testOut
-        debug SPLICEMACHINE_VERSION = $SPLICEMACHINE_VERSION
-        debug SPLICEMACHINE_IMPL = $SPLICEMACHINE_IMPL
+    # collect SpliceMachine info
+    echo -e "call syscs_util.syscs_get_version_info();" > $testQry
+    $SQLSHELL -q ${HOSTORURL} -f $testQry -o $testOut
+    if [[ "$?" != "0" ]]; then
+      echo "Error: sqlshell get_version_info failed for $SQLSHELL at $JDBC_URL"
+      exit 3
+    fi
+    while read -r line; do
+      if [[ "$line" = 'HOSTNAME'* ]]; then
+        read -r line
+        read -r line
+        SPLICEMACHINE_VERSION=$(echo $line | cut -d\| -f2 | cut -d- -f1)
+        SPLICEMACHINE_IMPL=$(echo $line | cut -d\| -f3)
+        break
+      fi
+    done < $testOut
+    debug SPLICEMACHINE_VERSION = $SPLICEMACHINE_VERSION
+    debug SPLICEMACHINE_IMPL = $SPLICEMACHINE_IMPL
 
 	#============
 	# Main
