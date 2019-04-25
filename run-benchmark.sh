@@ -911,12 +911,12 @@ checkBenchResults() {
             else
 		        message "$SCHEMA query-${i}.sql no errors and no time"
 		        results[$j]="Nan"
-		        ${EXEC_STATUS[$bench]}="2"
+		        EXEC_STATUS[$bench]="2"
             fi
 	    else
             message "$SCHEMA query-${i}.sql had $errCount errors"
             results[$j]="Err"
-            ${EXEC_STATUS[$bench]}="3"
+            EXEC_STATUS[$bench]="3"
 	    fi
     done
 
