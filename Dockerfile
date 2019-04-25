@@ -23,5 +23,6 @@ COPY ./sqlshell /sqlshell
 COPY ./TPC-H/templates /TPC-H/templates
 COPY ./TPC-DS/templates /TPC-DS/templates
 COPY ./run-benchmark.sh /run-benchmark.sh
+COPY ./index.html /index.html
 
 ENTRYPOINT ["/bin/bash", "-c", "/run-benchmark.sh \"$@\"", "--"]

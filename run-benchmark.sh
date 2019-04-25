@@ -67,12 +67,13 @@ fixPath() {
   echo $path
 }
 
-now() {
-  date +%Y%m%d-%H%M
+timestamp() {
+  echo -e $(date +%s%3N)
 }
 
-STARTD=$(now)
+STARTD=$(date +%Y%m%d-%H%M)
 STARTS=`date +%s`
+BENCH_START=$(date -u +'%Y-%m-%d %H:%M:%S')
 
 #Defaults
 HOST=""
@@ -86,10 +87,15 @@ MODE="bulk"
 LOGBASE=""
 LABEL=""
 SUFFIX=""
-declare -i ITER=0
+declare -i ITER=1
 declare -i TIMEOUT=0
 DEBUG=0
 VERBOSE=0
+
+# Arrays for times and errors
+declare -A EXEC_TIME
+declare -A EXEC_START_DATE
+declare -A EXEC_STATUS
 
 # Option Parsing
 OPTIND=1
@@ -350,14 +356,18 @@ killJob() {
 
 # takes a single argument -- the name of the query file, prepends SQLDIR
 runQuery() {
+   local bench="${1}"
    local queryfile=${SQLDIR}/${1}
    local outfile=${LOGDIR}/${1//sql/out}
+
+   EXEC_START_DATE[$bench]="$(date -u '+%Y-%m-%d %H:%M:%S')"
+   local status=0
 
    # too verbose, so got rid of this
    #message running $queryfile
    if [[ $TIMEOUT -eq 0 ]]; then
       $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile 
-      return $?
+      status=$?
    else
       $SQLSHELL -q ${HOSTORURL} -f $queryfile -o $outfile &
       debug backgrounded shell
@@ -385,8 +395,13 @@ runQuery() {
          for id in $jobs; do
            killJob $id
          done
+         status=1
       fi
    fi
+
+   EXEC_STATUS[$bench]=$status
+
+   return $status
 }
 
 # only works on a 'one count' query outputfile
@@ -817,7 +832,6 @@ runQueries() {
          message "Running $BENCH query $qry at scale $SCALE"
          runQuery "query-${qry}.sql"
       done
-
    else  # evaluate SETSTYLE words
       for i in `seq -w $BENCHMIN $BENCHMAX`; do
          if [[ "$BENCH" == "TPCH" ]]; then
@@ -840,15 +854,15 @@ runQueries() {
 			     "$i" == "10" || "$i" == "12" || "$i" == "16" || "$i" == "57" || "$i" == "69" || "$i" == "72" || \
 			     "$i" == "14" || "$i" == "48" || "$i" == "64" || "$i" == "74" || \
 			     "$i" == "11" || "$i" == "35" || "$i" == "95" ]]; then
-			  message "Set is $SET, so skipping $BENCH query ${i}"
-			  continue
+			      message "Set is $SET, so skipping $BENCH query ${i}"
+			      continue
 		       fi
 		    elif [[ "$SET" == "snow" ]]; then # the snowflake 14 - see DB-7892 except q64
 		       if [[ "$i" != "03" && "$i" != "07" && "$i" != "19" && "$i" != "23" && "$i" != "34" && \
 			     "$i" != "36" && "$i" != "42" && "$i" != "52" && "$i" != "53" && "$i" != "55" && \
 			     "$i" != "59" && "$i" != "89" ]]; then
-			  message "Set is $SET, so skipping $BENCH query ${i}"
-			  continue
+			      message "Set is $SET, so skipping $BENCH query ${i}"
+			      continue
 		       fi
 		    elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1677, 1679, 1008, 1020, 1016, 1017, 1022
 		       if [[ "$i" != "04" && "$i" != "05" && "$i" != "13" && "$i" != "24" && "$i" != "27" && "$i" != "36" && "$i" != "41" && \
@@ -857,83 +871,98 @@ runQueries() {
 		             "$i" != "10" && "$i" != "12" && "$i" != "16" && "$i" != "57" && "$i" != "69" && "$i" != "72" && \
 			     "$i" != "14" && "$i" != "48" && "$i" != "64" && "$i" != "74" && \
 			     "$i" != "11" && "$i" != "35" && "$i" != "95" ]]; then
-			  message "Set is $SET, so skipping $BENCH query ${i}"
-			  continue
+			      message "Set is $SET, so skipping $BENCH query ${i}"
+			      continue
 		       fi
 		    fi
 		 fi
 		 message "Running $BENCH query ${i} at scale $SCALE"
 		 runQuery "query-${i}.sql"
-	      done
-	   fi
-	}
+      done
+   fi
+}
 
-	checkBenchResults() {
-	  local schema=$1
-	  local iter=$2
+checkBenchResults() {
+    local schema=$1
+    local iter=$2
 
-	  local -a results
+    local -a results
 
-	  # TODO: handle SETSTYLE adhoc and sets
+    # TODO: handle SETSTYLE adhoc and sets
 
-	  local i
-	  local j=0
-	  for i in `seq -w $BENCHMIN $BENCHMAX`; do
+    local i
+    local j=0
+    for i in `seq -w $BENCHMIN $BENCHMAX`; do
 	    let j++
+	    local bench="query-${i}.sql"
 	    local -i errCount=$(checkQueryError "${LOGDIR}/query-${i}.out")
 	    #debug checkBenchResults errCount $errCount
 	    if [[ $errCount -eq 0 ]]; then
-	      local time=$(checkQueryTime "${LOGDIR}/query-${i}.out")
-	      if [[ "$time" != "" ]]; then
-		message "$SCHEMA query-${i}.sql took $time milliseconds"
-		results[$j]=$time
-	      else
-		message "$SCHEMA query-${i}.sql no errors and no time"
-		results[$j]="Nan"
-	      fi
+            local time=$(checkQueryTime "${LOGDIR}/query-${i}.out")
+            if [[ "$time" != "" ]]; then
+		        message "$SCHEMA query-${i}.sql took $time milliseconds"
+		        results[$j]=$time
+		        EXEC_TIME[$bench]=$time
+            else
+		        message "$SCHEMA query-${i}.sql no errors and no time"
+		        results[$j]="Nan"
+            fi
 	    else
-	      message "$SCHEMA query-${i}.sql had $errCount errors"
-	      results[$j]="Err"
+            message "$SCHEMA query-${i}.sql had $errCount errors"
+            results[$j]="Err"
 	    fi
-	  done
+    done
 
-	  # loop over the variable set of results
-	  echo -n "$SCHEMA results"
-	  if [[ "$iter" != "0" ]]; then
-	     echo -n " for run $iter"
-	  fi
-	  echo -n ": "
-	  local -i k=1
-	  while [ $k -le $j ]; do
-	    if (( $k == $j )); then
-	      echo ${results[$k]}
-	    else
-	      echo -ne "${results[$k]}, "
-	    fi
-	    let k++
-	  done
+    # loop over the variable set of results
+    echo -n "$SCHEMA results"
+    if [[ "$iter" != "0" ]]; then
+        echo -n " for run $iter"
+    fi
+    echo -n ": "
+    local -i k=1
+    while [ $k -le $j ]; do
+        if (( $k == $j )); then
+            echo ${results[$k]}
+        else
+            echo -ne "${results[$k]}, "
+        fi
+        let k++
+    done
 
-	}
+    # create report for Jenkins
+    for bench in ${!EXEC_START_DATE[@]}; do
+        local date=${EXEC_START_DATE[$bench]}
+        local elapsed=${EXEC_TIME[$bench]}
+        local status="PASS"
+        local errorCode="0"
+        if [[ ${EXEC_STATUS[$bench]} != 0 ]]; then
+            status="FAIL"
+            BENCH_PASS="FAIL"
+            errorCode="1"
+        fi
+	    echo "$date|$bench|$iter|$status|$errorCode||$elapsed" >> ${LOGBASE}logs/test_run.csv
+    done
+}
 
-	# TOODO: iterate over many results
+	# TODO: iterate over many results
 	# checkTPCHOutputs() {
 	# compute min/max/avg/stddev
-	# TOODO: consider global results 2-dimensional array?
+	# TODO: consider global results 2-dimensional array?
 	# RESULTS[$i][0] = name
 	# RESULTS[$i][1] = count
 	# RESULTS[$i][2] = sum
 	# RESULTS[$i][3] = sumsq
 	# }
 
-	# TOODO: output result as many-row csv file
+	# TODO: output result as many-row csv file
 	# test_run.csv
 	#Time	Query	Iteration	Status	Error code	Error msg	Elapsed
 
-	# TOODO: consider pushing to s3
+	# TODO: consider pushing to s3
 	# s3:splice-performance/ {run,test_run,test_cluster}
 	# possibly put in a new place to start
 
-	# TOODO: consider getting a unique id for build run from groovy script in jenkins
+	# TODO: consider getting a unique id for build run from groovy script in jenkins
 
 	#============
 	# Sanity Tests
@@ -951,37 +980,55 @@ runQueries() {
 	fi
 
 	# Test that we can connect to a db
-	testQry="testQry.sql"
-	testOut="testOut.txt"
-	echo -e "elapsedtime on;\nselect count(1) from sys.systables;" > $SQLDIR/$testQry
-	$SQLSHELL -q ${HOSTORURL} -f $SQLDIR/$testQry -o ${LOGDIR}/$testOut
+	testQry="$SQLDIR/testQry.sql"
+	testOut="${LOGDIR}/testOut.txt"
+	echo -e "elapsedtime on;\nselect count(1) from sys.systables;" > $testQry
+	$SQLSHELL -q ${HOSTORURL} -f $testQry -o $testOut
 	if [[ "$?" != "0" ]]; then
 	  echo "Error: sqlshell test failed for $SQLSHELL at $JDBC_URL" 
 	  exit 3
 	elif (( $DEBUG )); then
 	  message "Test query results follow"
-	  cat ${LOGDIR}/$testOut
+	  cat $testOut
 	  echo
 	fi
 
-	debug check that runQuery succeeds
-	runQuery $testQry
-	testOut="$LOGDIR/${testQry//sql/out}"
-	if [[ ! -f $testOut ]]; then
-	   echo "Error: runQuery did not produce output!"
-	   exit 3
-	fi
+#	debug check that runQuery succeeds
+#	runQuery $testQry
+#	if [[ ! -f $testOut ]]; then
+#	   echo "Error: runQuery did not produce output!"
+#	   exit 3
+#	fi
 
 	# check for Errors on testQry
-	testErr=$(checkQueryError $testOut)
-	if [[ $testErr -ne  0 ]]; then
-	   echo "Error: runQuery had errors on testQry"
-	  if (( $DEBUG )); then
-	    cat $testOut
-	    echo
-	  fi
-	  exit 3
-	fi
+#	testErr=$(checkQueryError $testOut)
+#	if [[ $testErr -ne  0 ]]; then
+#	   echo "Error: runQuery had errors on testQry"
+#	  if (( $DEBUG )); then
+#	    cat $testOut
+#	    echo
+#	  fi
+#	  exit 3
+#	fi
+
+        # collect SpliceMachine info
+        echo -e "call syscs_util.syscs_get_version_info();" > $testQry
+        $SQLSHELL -q ${HOSTORURL} -f $testQry -o $testOut
+        if [[ "$?" != "0" ]]; then
+          echo "Error: sqlshell get_version_info failed for $SQLSHELL at $JDBC_URL"
+          exit 3
+        fi
+        while read -r line; do
+          if [[ "$line" = 'HOSTNAME'* ]]; then
+            read -r line
+            read -r line
+            SPLICEMACHINE_VERSION=$(echo $line | cut -d\| -f2 | cut -d- -f1)
+            SPLICEMACHINE_IMPL=$(echo $line | cut -d\| -f3)
+            break
+          fi
+        done < $testOut
+        debug SPLICEMACHINE_VERSION = $SPLICEMACHINE_VERSION
+        debug SPLICEMACHINE_IMPL = $SPLICEMACHINE_IMPL
 
 	#============
 	# Main
@@ -1011,18 +1058,12 @@ runQueries() {
 	  # TODO: implement TPCH validation checks
 
 	  # now start running
-	  if [[ $ITER -le 1 ]]; then
-	    echo "Handle single run"
-	    runQueries $SCHEMA
+	  BENCH_PASS="PASS"
+      > ${LOGBASE}logs/test_run.csv
 
-	    # output single results
-	    checkBenchResults $SCHEMA 0
-
-	  else # many iterations
-
-	    declare -i i=1
-	    while [ $i -le $ITER ]; do
-	      loopStart=$(now)
+	  declare -i i=1
+	  while [ $i -le $ITER ]; do
+	      loopStart=$(date +%Y%m%d-%H%M)
 
 	      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD-iter$i"
 	      mkdir -p $LOGDIR
@@ -1032,14 +1073,19 @@ runQueries() {
 	      checkBenchResults $SCHEMA $i
 
 	      let i++
-	    done
+	  done
 
-	    # TOODO: behavior: if iterations > 1, provide avg/min/max/stddev
-	  fi
+	  # TODO: behavior: if iterations > 1, provide avg/min/max/stddev
+
+      BENCH_END=$(date -u +'%Y-%m-%d %H:%M:%S')
+      echo "$SPLICEMACHINE_VERSION|$SPLICEMACHINE_IMPL|UNKNOWN_CLUSTER_ID|$BENCH|$SCALE||$ITER|$BENCH_PASS|$BENCH_START|$BENCH_END" > ${LOGBASE}logs/run.csv
+      sort -o ${LOGBASE}logs/test_run.csv ${LOGBASE}logs/test_run.csv
+
+      cp $BASEDIR/index.html ${LOGBASE}logs
 
 	elif [[ "$BENCH" == "TPCC" || "$BENCH" == "HTAP"  ]]; then
 
-	  # TOODO: handle benchmarks which run transactional drivers *and* analytic queries
+	  # TODO: handle benchmarks which run transactional drivers *and* analytic queries
 	  echo "Sorry, $BENCH is not yet implemented"
 
 	fi
@@ -1047,7 +1093,7 @@ runQueries() {
 	# possibly send email?
 	# possibly write to a table?
 
-	# TOODO: document docker.for.mac.localhost
+	# TODO: document docker.for.mac.localhost
 
 	ENDS=`date +%s`
 	TOTALS=$((ENDS-STARTS))
