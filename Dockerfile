@@ -19,6 +19,7 @@ RUN	\
 &&      rm -rf /var/cache/apk/* 
 
 # TODO: once DB-6899 gets to cloud service, update to the SQLSHELL_URL
+COPY ./VERSION /VERSION
 COPY ./sqlshell /sqlshell
 COPY ./TPC-H/templates /TPC-H/templates
 COPY ./TPC-DS/templates /TPC-DS/templates

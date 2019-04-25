@@ -151,6 +151,11 @@ BASEDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 BASEDIR=$(fixPath $BASEDIR)
 #debug basedir ends in / $BASEDIR
 
+# setup VERSION
+VERSION=$(cat ${BASEDIR}VERSION)
+VERSION_DATE=$(date -r ${BASEDIR}VERSION)
+echo "##### Splice Benchmark Harness version: $VERSION ($VERSION_DATE)"
+
 # setup BENCHMARK
 BENCHMARK="TPC-H"
 if [[ "$BENCH" == "TPCDS" ]]; then
