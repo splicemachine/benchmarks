@@ -67,11 +67,11 @@ fixPath() {
   echo $path
 }
 
-timestamp() {
-  echo -e $(date +%s%3N)
+now() {
+  date +%Y%m%d-%H%M
 }
 
-STARTD=$(date +%Y%m%d-%H%M)
+STARTD=$(now)
 STARTS=`date +%s`
 BENCH_START=$(date -u +'%Y-%m-%d %H:%M:%S')
 
@@ -950,17 +950,17 @@ checkBenchResults() {
     done
 }
 
-	# TODO: iterate over many results
+	# TOODO: iterate over many results
 	# checkTPCHOutputs() {
 	# compute min/max/avg/stddev
-	# TODO: consider global results 2-dimensional array?
+	# TOODO: consider global results 2-dimensional array?
 	# RESULTS[$i][0] = name
 	# RESULTS[$i][1] = count
 	# RESULTS[$i][2] = sum
 	# RESULTS[$i][3] = sumsq
 	# }
 
-	# TODO: output result as many-row csv file
+	# TOODO: output result as many-row csv file
 	# test_run.csv
 	#Time	Query	Iteration	Status	Error code	Error msg	Elapsed
 
@@ -968,7 +968,7 @@ checkBenchResults() {
 	# s3:splice-performance/ {run,test_run,test_cluster}
 	# possibly put in a new place to start
 
-	# TODO: consider getting a unique id for build run from groovy script in jenkins
+	# TOODO: consider getting a unique id for build run from groovy script in jenkins
 
 	#============
 	# Sanity Tests
@@ -1051,7 +1051,7 @@ checkBenchResults() {
 
 	  declare -i i=1
 	  while [ $i -le $ITER ]; do
-	      loopStart=$(date +%Y%m%d-%H%M)
+	      loopStart=$(now)
 
 	      LOGDIR="${LOGBASE}logs/$SCHEMA-queries-$STARTD-iter$i"
 	      mkdir -p $LOGDIR
@@ -1063,7 +1063,7 @@ checkBenchResults() {
 	      let i++
 	  done
 
-	  # TODO: behavior: if iterations > 1, provide avg/min/max/stddev
+	  # TOODO: behavior: if iterations > 1, provide avg/min/max/stddev
 
       BENCH_END=$(date -u +'%Y-%m-%d %H:%M:%S')
       echo "$SPLICEMACHINE_VERSION|$SPLICEMACHINE_IMPL|UNKNOWN_CLUSTER_ID|$BENCH|$SCALE||$ITER|$BENCH_PASS|$BENCH_START|$BENCH_END" > ${LOGBASE}logs/run.csv
@@ -1073,7 +1073,7 @@ checkBenchResults() {
 
 	elif [[ "$BENCH" == "TPCC" || "$BENCH" == "HTAP"  ]]; then
 
-	  # TODO: handle benchmarks which run transactional drivers *and* analytic queries
+	  # TOODO: handle benchmarks which run transactional drivers *and* analytic queries
 	  echo "Sorry, $BENCH is not yet implemented"
 
 	fi
@@ -1081,7 +1081,7 @@ checkBenchResults() {
 	# possibly send email?
 	# possibly write to a table?
 
-	# TODO: document docker.for.mac.localhost
+	# TOODO: document docker.for.mac.localhost
 
 	ENDS=`date +%s`
 	TOTALS=$((ENDS-STARTS))
