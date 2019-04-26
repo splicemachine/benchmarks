@@ -3,7 +3,7 @@
 # Author: Murray Brown <mbrown@splicemachine.com>
 
 usage() {
-  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-S set] [-m mode] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-D] [-V] [-H]"
+  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-S set] [-m mode] [-d dir] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-C] [-D] [-V] [-H]"
 }
 
 help() {
@@ -18,11 +18,13 @@ help() {
   echo -e "\t -S set \t\t which query set to run (default: good) {valid: good, snow, all, errors}"
   echo -e "\t\t\t\t you can also supply a list of one or more comma-separated query numbers e.g. 01,07,21"
   echo -e "\t -m mode \t\t mode for setup (default: bulk) {valid: bulk or linear}"
+  echo -e "\t -d dir \t\t import data source (default: ${DATASOURCE})"
   echo -e "\t -L logdir \t\t a directory to base the logs (default: /logs)"
   echo -e "\t -l label \t\t a label to identify the output (default: scale and date)"
   echo -e "\t -n name \t\t a suffix to add to a schema name"
   echo -e "\t -i iterations \t\t how many iterations to run (default: 1)"
   echo -e "\t -t timeout \t\t how many seconds to allow each query to run (default: forever)"
+  echo -e "\t -C create \t\t force database creation and data import (default: ${CREATE})"
   echo -e "\t -D debug mode \t\t prints debug messaging"
   echo -e "\t -V verbose mode \t prints helpful messaging"
   echo -e "\t -H help \t\t prints this help"
@@ -83,6 +85,8 @@ INTERACTIVE=0
 SCALE=1
 SET="good"
 SETSTYLE="words"
+CREATE=0
+DATASOURCE="s3a://splice-benchmark-data/flat/"
 MODE="bulk"
 LOGBASE=""
 LABEL=""
@@ -99,7 +103,7 @@ declare -A EXEC_STATUS
 
 # Option Parsing
 OPTIND=1
-while getopts ":h:u:b:s:S:m:L:l:n:i:t:DVH" opt; do
+while getopts ":h:u:b:s:S:m:d:L:l:n:i:t:CDVH" opt; do
   case $opt in
     h) HOST=$OPTARG
        ;;
@@ -113,6 +117,8 @@ while getopts ":h:u:b:s:S:m:L:l:n:i:t:DVH" opt; do
        ;;
     m) MODE=$OPTARG
        ;;
+    d) DATASOURCE=$OPTARG
+       ;;
     L) LOGBASE=$OPTARG
        ;;
     l) LABEL=$OPTARG
@@ -122,6 +128,8 @@ while getopts ":h:u:b:s:S:m:L:l:n:i:t:DVH" opt; do
     i) ITER=$OPTARG
        ;;
     t) TIMEOUT=$OPTARG
+       ;;
+    C) CREATE=1
        ;;
     D) DEBUG=1
        ;;
@@ -599,6 +607,7 @@ validateSchema() {
 
    # check schema exists
    if ( ! checkSchema $schema ); then
+      debug Schema $schema does not exist
       return 1
    fi
 
@@ -660,6 +669,7 @@ fillQueryTemplate() {
    -e "s/##SCHEMA##/$schema/g" \
    -e "s/##SCALE##/$scale/g" \
    -e "s/##QRY11##/${QRY11}/g" \
+   -e "s%##DSRC##%$DATASOURCE%g" \
    > $output
 
 }
@@ -680,6 +690,12 @@ createDatabase() {
    debug "Creating $BENCH db at $schema for scale $scale using mode $mode"
 
    # TODO: move logs for setup to a schema-specific subdir
+
+   messageBegin "$schema: Removing existing schema . . ."
+   fillQueryTemplate "setup-01-drop.sql" $schema $scale
+   runQuery "setup-01-drop.sql"
+   local -i dropTime=$(checkQueryTime "${LOGDIR}/setup-01-drop.out")
+   message " took $dropTime milliseconds."
 
    messageBegin "$schema: Creating tables . . ."
    fillQueryTemplate "setup-01-tables.sql" $schema $scale
@@ -725,6 +741,16 @@ createDatabase() {
          exit 3
       fi
 
+      messageBegin "$schema: Running compaction . . ."
+      fillQueryTemplate "setup-04-compact.sql" $schema $scale
+      runQuery "setup-04-compact.sql"
+      local -i compactTime=$(checkQueryTime "${LOGDIR}/setup-04-compact.out")
+      message " took $compactTime milliseconds."
+      errCount=$(checkQueryError "${LOGDIR}/setup-04-compact.out")
+      if [[ $errCount -gt 0 ]]; then
+         echo "Error: compaction returned an error?"
+         exit 4
+      fi
    else # i.e. mode=bulk
       # TOODO: complete pre-split-points for indexes
 
@@ -750,23 +776,14 @@ createDatabase() {
       message " took $loadTime milliseconds."
       errCount=$(checkQueryError "${LOGDIR}/setup-03-bulk-import.out")
       if [[ $errCount -gt 0 ]]; then
-        echo "Error: failure during s3 data bulkload. Is your cluster configured to read from s3?"
+        echo "Error: failure during data bulkload."
         exit 3
       fi
+
+      local -i compactTime=0
    fi
 
-   messageBegin "$schema: Running compaction . . ."
-   fillQueryTemplate "setup-04-compact.sql" $schema $scale
-   runQuery "setup-04-compact.sql"
-   local -i compactTime=$(checkQueryTime "${LOGDIR}/setup-04-compact.out")
-   message " took $compactTime milliseconds."
-   errCount=$(checkQueryError "${LOGDIR}/setup-04-compact.out")
-   if [[ $errCount -gt 0 ]]; then
-     echo "Error: compaction returned an error?"
-     exit 4
-   fi
-
-   messageBegin "$schema: Gathering statstics . . ."
+   messageBegin "$schema: Gathering statistics . . ."
    fillQueryTemplate "setup-05-stats.sql" $schema $scale
    runQuery "setup-05-stats.sql"
    checkSchemaStats $schema
@@ -964,7 +981,7 @@ checkBenchResults() {
 	# test_run.csv
 	#Time	Query	Iteration	Status	Error code	Error msg	Elapsed
 
-	# TODO: consider pushing to s3
+	# TOODO: consider pushing to s3
 	# s3:splice-performance/ {run,test_run,test_cluster}
 	# possibly put in a new place to start
 
@@ -1027,14 +1044,14 @@ checkBenchResults() {
 	if [[ "$BENCH" == "TPCH" || "$BENCH" == "TPCDS" ]]; then
 
 	  # check for SCHEMA; if not present, make it
-	  if ( ! validateSchema $SCHEMA $SCALE ) then
-	    createDatabase $SCHEMA $SCALE $MODE
-	  fi
+	  if (( $CREATE )) || ! validateSchema $SCHEMA $SCALE; then
+          createDatabase $SCHEMA $SCALE $MODE
 
-	  # bomb out if schema still not present
-	  if ( ! validateSchema $SCHEMA $SCALE ) then
-	    message "Error: the schema $SCHEMA has failed validation"
-	    exit 1
+          # bomb out if schema still not present
+          if ! validateSchema $SCHEMA $SCALE; then
+              message "Error: the schema $SCHEMA has failed validation"
+              exit 1
+          fi
 	  fi
 
 	  # TODO: generate explain statements
