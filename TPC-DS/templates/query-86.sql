@@ -1,7 +1,9 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 86
-select top 100  
+select top 100 * from
+(
+  select
     sum(ws_net_paid) as total_sum
    ,i_category
    ,i_class
@@ -19,6 +21,7 @@ select top 100
  and d1.d_date_sk = ws_sold_date_sk
  and i_item_sk  = ws_item_sk
  group by rollup(i_category,i_class)
+) a
  order by
    lochierarchy desc,
    case when lochierarchy = 0 then i_category end,
