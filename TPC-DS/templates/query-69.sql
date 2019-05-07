@@ -4,6 +4,7 @@ elapsedtime on;
 
 /* put the exists subquery with its outer table into a derived table helps to flatten the not exists subquery */
 /* query that couldn't finish in 8.7 mins now can finish in ~40s */
+##EXPLAIN##
 select top 100
   cd_gender,
   cd_marital_status,

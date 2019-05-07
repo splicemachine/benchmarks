@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 16
+##EXPLAIN##
 select
 	p_brand,
 	p_type,

@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 77
-
+##EXPLAIN##
 with ss as
  (select s_store_sk,
          sum(ss_ext_sales_price) as sales,

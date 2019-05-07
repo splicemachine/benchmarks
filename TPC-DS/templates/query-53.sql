@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 53
+##EXPLAIN##
 select top 100 * from 
 (select i_manufact_id,
 sum(ss_sales_price) sum_sales,

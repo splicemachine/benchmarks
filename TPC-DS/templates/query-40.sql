@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 40
+##EXPLAIN##
 select top 100 
    w_state
   ,i_item_id

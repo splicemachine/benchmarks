@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 49
+##EXPLAIN##
 select top 100 
  'web' as channel
  ,web.item

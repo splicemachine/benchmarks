@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 91
+##EXPLAIN##
 select  
         cc_call_center_id Call_Center,
         cc_name Call_Center_Name,

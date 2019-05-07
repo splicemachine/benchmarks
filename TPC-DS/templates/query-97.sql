@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 97
+##EXPLAIN##
 with ssci as (
 select ss_customer_sk customer_sk
       ,ss_item_sk item_sk

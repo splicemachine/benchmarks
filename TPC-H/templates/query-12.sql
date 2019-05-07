@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 12
+##EXPLAIN##
 select
 	l_shipmode,
 	sum(case

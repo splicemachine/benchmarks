@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 01
+##EXPLAIN##
 select
 	l_returnflag,
 	l_linestatus,

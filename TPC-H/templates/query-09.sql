@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 09
+##EXPLAIN##
 select
   nation,
   o_year,

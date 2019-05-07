@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 65
-
+##EXPLAIN##
 select top 100
 	s_store_name,
 	i_item_desc,

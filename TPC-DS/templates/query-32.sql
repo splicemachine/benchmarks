@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 32
+##EXPLAIN##
 select top 100 sum(cs_ext_discount_amt)  as "excess discount amount" 
 from 
    catalog_sales 

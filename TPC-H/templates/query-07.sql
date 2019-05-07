@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 07
+##EXPLAIN##
 select
 	supp_nation,
 	cust_nation,

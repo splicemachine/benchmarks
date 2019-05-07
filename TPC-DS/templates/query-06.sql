@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 06
+##EXPLAIN##
 select top 100 a.ca_state state, count(*) cnt
  from customer_address a
      ,customer c

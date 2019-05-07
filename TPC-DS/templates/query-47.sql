@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 47
-
+##EXPLAIN##
 with v1 as(
  select i_category, i_brand,
         s_store_name, s_company_name,
