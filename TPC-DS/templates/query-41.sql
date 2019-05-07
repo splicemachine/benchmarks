@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 41
+##EXPLAIN##
 --select top 100 distinct(i_product_name)
  select top 100 i_product_name
  from item i1 ,

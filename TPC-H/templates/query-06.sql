@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 06
+##EXPLAIN##
 select
 	sum(l_extendedprice * l_discount) as revenue
 from

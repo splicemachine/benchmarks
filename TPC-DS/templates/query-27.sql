@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 27
+##EXPLAIN##
 select top 100 i_item_id,
         s_state, grouping(s_state) g_state,
         avg(ss_quantity) agg1,

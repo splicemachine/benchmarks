@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 02
-
+##EXPLAIN##
 with wscs as
  (select sold_date_sk
         ,sales_price

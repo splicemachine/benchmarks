@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 35
+##EXPLAIN##
 /* 
 
 -- gd 2/27/19

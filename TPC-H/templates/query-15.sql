@@ -13,6 +13,7 @@ create view revenue0 (supplier_no, total_revenue) as
 		l_suppkey;
 
 elapsedtime on;
+##EXPLAIN##
 select
 	s_suppkey,
 	s_name,

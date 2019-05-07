@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 14
+##EXPLAIN##
 with avg_sales as
  (select avg(quantity*list_price) average_sales
   from (select ss_quantity quantity

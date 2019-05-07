@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 75
+##EXPLAIN##
 WITH all_sales AS (
  SELECT d_year
        ,i_brand_id

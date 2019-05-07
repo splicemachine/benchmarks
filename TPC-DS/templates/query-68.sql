@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 68
-
+##EXPLAIN##
 select top 100 c_last_name
        ,c_first_name
        ,ca_city

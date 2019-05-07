@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 83
+##EXPLAIN##
 with sr_items as
  (select i_item_id item_id,
         sum(sr_return_quantity) sr_item_qty

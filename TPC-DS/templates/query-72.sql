@@ -2,7 +2,7 @@ SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 72
 -- Order of tables rewritten.
-
+##EXPLAIN##
 select top 100 i_item_desc
       ,w_warehouse_name
       ,d1.d_week_seq

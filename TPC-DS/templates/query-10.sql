@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 10
+##EXPLAIN##
 select top 100 
   cd_gender,
   cd_marital_status,

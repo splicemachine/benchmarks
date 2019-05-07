@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 11
+##EXPLAIN##
 select
 	ps_partkey,
 	sum(ps_supplycost * ps_availqty) as value

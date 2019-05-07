@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 36
+##EXPLAIN##
 select top 100 *
 from
 (

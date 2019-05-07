@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 67
-
+##EXPLAIN##
 select top 100 *
 from (select i_category
             ,i_class

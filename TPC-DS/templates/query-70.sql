@@ -3,7 +3,7 @@ elapsedtime on;
 -- TPC-DS QUERY 70
 -- replaced the alias lochierarchy with actual expression in the order by
 -- change this back to original once we fix this issue
-
+##EXPLAIN##
 select top 100 
     sum(ss_net_profit) as total_sum
    ,s_state
