@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 13
+##EXPLAIN##
 select
 	c_count,
 	count(*) as custdist

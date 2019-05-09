@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 22
+##EXPLAIN##
 select
 	cntrycode,
 	count(*) as numcust,

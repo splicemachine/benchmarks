@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 61
-
+##EXPLAIN##
 select top 100 promotions,total,cast(promotions as decimal(15,4))/cast(total as decimal(15,4))*100
 from
   (select sum(ss_ext_sales_price) promotions

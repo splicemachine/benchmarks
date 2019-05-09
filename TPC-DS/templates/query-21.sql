@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 21
+##EXPLAIN##
 select top 100 *
  from(select w_warehouse_name
             ,i_item_id

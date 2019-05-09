@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 04
+##EXPLAIN##
 select
 	o_orderpriority,
 	count(*) as order_count

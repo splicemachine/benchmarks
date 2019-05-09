@@ -1,7 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 66
-
+##EXPLAIN##
 select top 100  
          w_warehouse_name
  	,w_warehouse_sq_ft

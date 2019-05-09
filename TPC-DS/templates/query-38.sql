@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 38
+##EXPLAIN##
 select top 100 count(*) from (
     select distinct c_last_name, c_first_name, d_date
     from store_sales, date_dim, customer

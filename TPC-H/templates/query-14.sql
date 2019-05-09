@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 14
+##EXPLAIN##
 select
 	100.00 * sum(case
 		when p_type like 'PROMO%'

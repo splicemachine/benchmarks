@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 15
+##EXPLAIN##
 select top 100 ca_zip
        ,sum(cs_sales_price)
  from catalog_sales

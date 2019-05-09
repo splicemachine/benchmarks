@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 88
+##EXPLAIN##
 select  *
 from
  (select count(*) h8_30_to_9

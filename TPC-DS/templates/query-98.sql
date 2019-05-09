@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 98
+##EXPLAIN##
 select i_item_id
       ,i_item_desc 
       ,i_category 

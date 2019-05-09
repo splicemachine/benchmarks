@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 51
+##EXPLAIN##
 WITH web_v1 as (
 select
   ws_item_sk item_sk, d_date,

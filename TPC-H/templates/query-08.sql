@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 08
+##EXPLAIN##
 select
 	o_year,
 	sum(case

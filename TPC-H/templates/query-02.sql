@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 02
+##EXPLAIN##
 select
 	s_acctbal,
 	s_name,

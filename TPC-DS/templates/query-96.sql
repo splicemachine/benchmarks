@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 96
+##EXPLAIN##
 select top 100 count(*) 
 from store_sales
     ,household_demographics 

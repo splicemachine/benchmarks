@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 08
+##EXPLAIN##
 select top 100 s_store_name
       ,sum(ss_net_profit)
  from store_sales

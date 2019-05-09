@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 17
+##EXPLAIN##
 select
 	sum(l_extendedprice) / 7.0 as avg_yearly
 from

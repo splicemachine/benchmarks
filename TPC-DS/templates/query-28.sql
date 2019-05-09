@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 28
+##EXPLAIN##
 select top 100 *
 from (select avg(ss_list_price) B1_LP
             ,count(ss_list_price) B1_CNT

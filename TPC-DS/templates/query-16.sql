@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- TPC-DS QUERY 16
+##EXPLAIN##
 select top 100 
    count(distinct cs_order_number) as "order count"
   ,sum(cs_ext_ship_cost) as "total shipping cost"

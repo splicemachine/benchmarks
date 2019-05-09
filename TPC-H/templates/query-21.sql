@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 21
+##EXPLAIN##
 select
 	s_name,
 	count(*) as numwait

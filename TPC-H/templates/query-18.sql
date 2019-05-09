@@ -1,6 +1,7 @@
 SET SCHEMA ##SCHEMA##;
 elapsedtime on;
 -- QUERY 18
+##EXPLAIN##
 select
 	c_name,
 	c_custkey,

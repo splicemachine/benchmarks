@@ -3,7 +3,7 @@
 # Author: Murray Brown <mbrown@splicemachine.com>
 
 usage() {
-  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-S set] [-m mode] [-d dir] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-C] [-D] [-V] [-H]"
+  echo "Usage: $0 { -h host | -u url } [-b benchmark] [-s scale] [-S set] [-m mode] [-d dir] [-L logdir] [-l label] [-n name] [-i iterations] [-t timeout] [-C] [-D] [-V] [-P] [-H]"
 }
 
 help() {
@@ -27,6 +27,7 @@ help() {
   echo -e "\t -C create \t\t force database creation and data import (default: ${CREATE})"
   echo -e "\t -D debug mode \t\t prints debug messaging"
   echo -e "\t -V verbose mode \t prints helpful messaging"
+  echo -e "\t -P explain mode \t prints queries' plans"
   echo -e "\t -H help \t\t prints this help"
 }
 
@@ -95,6 +96,7 @@ declare -i ITER=1
 declare -i TIMEOUT=0
 DEBUG=0
 VERBOSE=0
+EXPLAIN=0
 
 # Arrays for times and errors
 declare -A EXEC_TIME
@@ -103,7 +105,7 @@ declare -A EXEC_STATUS
 
 # Option Parsing
 OPTIND=1
-while getopts ":h:u:b:s:S:m:d:L:l:n:i:t:CDVH" opt; do
+while getopts ":h:u:b:s:S:m:d:L:l:n:i:t:CDVPH" opt; do
   case $opt in
     h) HOST=$OPTARG
        ;;
@@ -134,6 +136,8 @@ while getopts ":h:u:b:s:S:m:d:L:l:n:i:t:CDVH" opt; do
     D) DEBUG=1
        ;;
     V) VERBOSE=1
+       ;;
+    P) EXPLAIN=1
        ;;
     H) help
        exit 0
@@ -212,7 +216,7 @@ QRY11="0.0001000000" # defaults to tpch1g
 debug checking scale $SCALE for bench $BENCH
 # check for only valid scales
 if [[ "$BENCH" == "TPCH"  && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" || \
-      "$BENCH" == "TPCDS" && "$SCALE" != "1" && "$SCALE" != "100" || \
+      "$BENCH" == "TPCDS" && "$SCALE" != "1" && "$SCALE" != "100" && "$SCALE" != "1000" || \
       "$BENCH" == "TPCC"  && "$SCALE" != "1" || \
       "$BENCH" == "HTAP"  && "$SCALE" != "25" ]]; then
    echo "Error: scale of $SCALE is not (yet) supported for $BENCH!"
@@ -658,6 +662,12 @@ fillQueryTemplate() {
   local input="${BASEDIR}${BENCHMARK}/templates/$file"
   local output="$SQLDIR/$file"
 
+  local explain=""
+  if (( $EXPLAIN )); then
+    schema=$schema";maximumdisplaywidth 0"
+    explain="explain "
+  fi
+
   # TODO: add header as template fragment
 
   if [[ ! -f $input ]]; then
@@ -670,6 +680,7 @@ fillQueryTemplate() {
    -e "s/##SCALE##/$scale/g" \
    -e "s/##QRY11##/${QRY11}/g" \
    -e "s%##DSRC##%$DATASOURCE%g" \
+   -e "s/##EXPLAIN##/$explain/g" \
    > $output
 
 }
@@ -996,7 +1007,7 @@ checkBenchResults() {
 	fi
 
 	# Test for sqlshell
-	SQLSHELL="/sqlshell/sqlshell.sh"
+	SQLSHELL="./sqlshell/sqlshell.sh"
 	if [[ ! -f $SQLSHELL ]]; then
 	   echo "Error: could not find sqlshell <$SQLSHELL>"
 	   exit 2
