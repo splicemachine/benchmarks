@@ -1055,15 +1055,14 @@ checkBenchResults() {
 	if [[ "$BENCH" == "TPCH" || "$BENCH" == "TPCDS" ]]; then
 
 	  # check for SCHEMA; if not present, make it
-	  if (( $CREATE )) || ! validateSchema $SCHEMA $SCALE; then
+	  if (( $CREATE )); then
           createDatabase $SCHEMA $SCALE $MODE
-
-          # bomb out if schema still not present
-          if ! validateSchema $SCHEMA $SCALE; then
-              message "Error: the schema $SCHEMA has failed validation"
-              exit 1
-          fi
 	  fi
+      # bomb out if schema is not good
+      if ! validateSchema $SCHEMA $SCALE; then
+          message "Error: the schema $SCHEMA has failed validation"
+          exit 1
+      fi
 
 	  # TODO: generate explain statements
 	  # TODO: gather one explain plan for each query
