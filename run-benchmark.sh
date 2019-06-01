@@ -880,34 +880,38 @@ runQueries() {
                fi
             fi
          elif [[ "$BENCH" == "TPCDS" ]]; then
-		    if [[ "$SET" == "good" ]]; then  # see SPLICE tickets 1677, 1679, 1008, 1020, 1016, 1017, 1022
-		       if [[ "$i" == "04" || "$i" == "05" || "$i" == "13" || "$i" == "24" || "$i" == "27" || "$i" == "36" || "$i" == "41" || \
-                             "$i" == "51" || "$i" == "53" || "$i" == "63" || "$i" == "70" || "$i" == "85" || "$i" == "86" || "$i" == "87" || \
-                             "$i" == "88" || "$i" == "89" || "$i" == "90" || "$i" == "96" || "$i" == "97" || "$i" == "98" || "$i" == "99" || \
-			     "$i" == "10" || "$i" == "12" || "$i" == "16" || "$i" == "57" || "$i" == "69" || "$i" == "72" || \
-			     "$i" == "14" || "$i" == "48" || "$i" == "64" || "$i" == "74" || \
-			     "$i" == "11" || "$i" == "35" || "$i" == "95" ]]; then
-			      message "Set is $SET, so skipping $BENCH query ${i}"
-			      continue
-		       fi
-		    elif [[ "$SET" == "snow" ]]; then # the snowflake 14 - see DB-7892 except q64
-		       if [[ "$i" != "03" && "$i" != "07" && "$i" != "19" && "$i" != "23" && "$i" != "34" && \
-			     "$i" != "36" && "$i" != "42" && "$i" != "52" && "$i" != "53" && "$i" != "55" && \
-			     "$i" != "59" && "$i" != "89" ]]; then
-			      message "Set is $SET, so skipping $BENCH query ${i}"
-			      continue
-		       fi
-		    elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1677, 1679, 1008, 1020, 1016, 1017, 1022
-		       if [[ "$i" != "04" && "$i" != "05" && "$i" != "13" && "$i" != "24" && "$i" != "27" && "$i" != "36" && "$i" != "41" && \
-                             "$i" != "51" && "$i" != "53" && "$i" != "63" && "$i" != "70" && "$i" != "85" && "$i" != "86" && "$i" != "87" && \
-                             "$i" != "88" && "$i" != "89" && "$i" != "90" && "$i" != "96" && "$i" != "97" && "$i" != "98" && "$i" != "99" && \
-		             "$i" != "10" && "$i" != "12" && "$i" != "16" && "$i" != "57" && "$i" != "69" && "$i" != "72" && \
-			     "$i" != "14" && "$i" != "48" && "$i" != "64" && "$i" != "74" && \
-			     "$i" != "11" && "$i" != "35" && "$i" != "95" ]]; then
-			      message "Set is $SET, so skipping $BENCH query ${i}"
-			      continue
-		       fi
-		    fi
+            if [[ "$SET" == "good" ]]; then  # see SPLICE tickets 1020, 1016
+                if [[ "$SCALE" == "1" ]]; then
+                   if [[ "$i" == "04" || "$i" == "11" || "$i" == "78" ]]; then
+                      message "Set is $SET, so skipping $BENCH query ${i}"
+                      continue
+                   fi
+                else
+                   if [[ "$i" == "04" || "$i" == "10" || "$i" == "11" || "$i" == "74" || "$i" == "78" || "$i" == "88" ]]; then
+                      message "Set is $SET, so skipping $BENCH query ${i}"
+                      continue
+                   fi
+                fi
+            elif [[ "$SET" == "snow" ]]; then # the snowflake 14 - see DB-7892 except q64
+               if [[ "$i" != "03" && "$i" != "07" && "$i" != "19" && "$i" != "23" && "$i" != "34" && \
+                 "$i" != "36" && "$i" != "42" && "$i" != "52" && "$i" != "53" && "$i" != "55" && \
+                 "$i" != "59" && "$i" != "89" ]]; then
+                  message "Set is $SET, so skipping $BENCH query ${i}"
+                  continue
+               fi
+            elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1020, 1016
+               if [[ "$SCALE" == "1" ]]; then
+                  if [[ "$i" != "04" && "$i" != "11" && "$i" != "78" ]]; then
+                     message "Set is $SET, so skipping $BENCH query ${i}"
+                     continue
+                  fi
+               else
+                  if [[ "$i" != "04" || "$i" != "10" || "$i" != "11" || "$i" != "74" || "$i" != "78" || "$i" != "88" ]]; then
+                     message "Set is $SET, so skipping $BENCH query ${i}"
+                     continue
+                  fi
+               fi
+            fi
 		 fi
 		 message "Running $BENCH query ${i} at scale $SCALE"
 		 runQuery "query-${i}.sql"
