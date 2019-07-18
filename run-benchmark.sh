@@ -215,7 +215,7 @@ QRY11="0.0001000000" # defaults to tpch1g
 
 debug checking scale $SCALE for bench $BENCH
 # check for only valid scales
-if [[ "$BENCH" == "TPCH"  && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000" || \
+if [[ "$BENCH" == "TPCH"  && "$SCALE" != "1" && "$SCALE" != "10" && "$SCALE" != "100" && "$SCALE" != "1000"  && "$SCALE" != "10000" || \
       "$BENCH" == "TPCDS" && "$SCALE" != "1" && "$SCALE" != "100" && "$SCALE" != "1000" || \
       "$BENCH" == "TPCC"  && "$SCALE" != "1" || \
       "$BENCH" == "HTAP"  && "$SCALE" != "25" ]]; then
@@ -230,6 +230,8 @@ elif [[ "$SCALE" == "100" ]]; then
   QRY11="0.0000010000"
 elif [[ "$SCALE" == "1000" ]]; then
   QRY11="0.0000001000"
+elif [[ "$SCALE" == "10000" ]]; then
+  QRY11="0.0000000100"
 fi
 
 # defaults for TPCH
@@ -524,13 +526,23 @@ checkIndexCount() {
 } 
 
 checkTableRowCounts() {
-   local scale=$1
-   local outfile=$2
+   local schema=$1
+   local scale=$2
+
+   messageBegin "$schema: Counting tables . . ."
+   fillQueryTemplate "setup-06-count.sql" $schema $scale
+   runQuery "setup-06-count.sql"
+
+   local -i countTime=$(checkQueryTime "${LOGDIR}/setup-06-count.out")
+   message " took $countTime milliseconds."
+   errCount=$(checkQueryError "${LOGDIR}/setup-06-count.out")
+   if [[ $errCount -gt 0 ]]; then
+      debug ${LOGDIR}/setup-06-count.out has $errCount errors
+      return 1
+   fi
 
    if [[ "$BENCH" == "TPCH" ]]; then
-      # HACK: add benchmark to count filename
-      # TODO: remove hack, separate one-time 'setup' logs from 'run logs'
-      checkTPCHTableRowCounts $scale ${BENCH}-${outfile}
+      checkTPCHTableRowCounts $scale "${LOGDIR}/setup-06-count.out"
       return $?
    elif [[ "$BENCH" == "TPCDS" ]]; then
       # TODO: implement checkTPCDSTableRowCounts
@@ -552,7 +564,8 @@ checkTPCHTableRowCounts() {
    local -a answers1=(150000 6001215 25 1500000 200000 800000 5 10000)
    local -a answers10=(10 10 10 10 10 10 10 10)
    local -a answers100=(100 100 100 100 100 100 100 100)
-   local -a answers1000=(1000 1000 1000 1000 1000 1000 1000 1000)
+   local -a answers1000=(150000000 5999989709 25 1500000000 200000000 800000000 5 10000000)
+   local -a answers10000=(100 100 100 100 100 100 100 100)
 
    # get counts from outfile and compare
    local -i i=0;
@@ -560,7 +573,7 @@ checkTPCHTableRowCounts() {
    local -i err=0;
    debug about to loop tables
    for table in $tables; do
-      num=$(grep -A2 "^${table}[[:space:]]*$" ${LOGDIR}/../$outfile | tail -1| awk '{print $1}')
+      num=$(grep -A2 "^${table}[[:space:]]*$" $outfile | tail -1 | awk '{print $1}')
 
       debug checkTPCHTableRowCounts: compare $num vs ${answers1[$i]} from $outfile
       if [[ "$scale" == "1" ]]; then
@@ -577,6 +590,10 @@ checkTPCHTableRowCounts() {
          fi
       elif [[ "$scale" == "1000" ]]; then
          if [[ "${answers1000[$i]}" != "$num" ]]; then
+            err=$((err+1))
+         fi
+      elif [[ "$scale" == "10000" ]]; then
+         if [[ "${answers10000[$i]}" != "$num" ]]; then
             err=$((err+1))
          fi
       else # not implemented
@@ -617,18 +634,12 @@ validateSchema() {
 
    # check that tables are present
    if ( ! checkTableCount $schema $TABLECNT ); then
-      debug Schema $schema: missing $TABLECNT tables
       return 1
-   else
-     debug Schema $schema has $TABLECNT tables
    fi
 
    # check that indexes are present
    if ( ! checkIndexCount $schema $INDEXCNT ); then
-      debug Schema $schema: missing $INDEXCNT indices
       return 1
-   else
-     debug Schema $schema has $INDEXCNT indices
    fi
 
    # TOODO: check compaction somehow?
@@ -642,8 +653,8 @@ validateSchema() {
       debug Schema $schema has $statCount stats
    fi
 
-   # check that all the tables in setup-06-count.out have the 'right' counts
-   if ( ! checkTableRowCounts $scale "setup-06-count.out"); then
+   # check that all the tables have the 'right' counts
+   if ( ! checkTableRowCounts $schema $scale); then
       debug Schema $schema: counts mismatch
       return 1
    else
@@ -664,8 +675,7 @@ fillQueryTemplate() {
 
   local explain=""
   if (( $EXPLAIN )); then
-    schema=$schema";maximumdisplaywidth 0"
-    explain="explain "
+    explain="maximumdisplaywidth 0; explain "
   fi
 
   # TODO: add header as template fragment
@@ -810,29 +820,6 @@ createDatabase() {
       exit 5
    fi
 
-   messageBegin "$schema: Counting tables . . ."
-   # TODO: move count tables to a subroutine
-   fillQueryTemplate "setup-06-count.sql" $schema $scale
-   runQuery "setup-06-count.sql"
-   #HACK: copy setup-06-count.out to parent dir for future count checks
-   cp ${LOGDIR}/setup-06-count.out ${LOGDIR}/../$BENCH-setup-06-count.out
-   #TOODO: remove HACK about setup-06-count.out
-
-   local -i countTime=$(checkQueryTime "${LOGDIR}/setup-06-count.out")
-   message " took $countTime milliseconds."
-   errCount=$(checkQueryError "${LOGDIR}/setup-06-count.out")
-   if [[ $errCount -gt 0 ]]; then
-      echo "Error: failure during data load"
-      exit 4
-   fi
-
-   # check if the counts are accurate
-   if ( ! checkTableRowCounts $scale "setup-06-count.out"); then
-      message "Error: counts mismatched on $schema"
-   else
-      message "Counts are correct on $schema at scale $scale"
-   fi
-
    # capture total time and print results
    local -i end=`date +%s`
    runtime=$((end-start))
@@ -843,6 +830,7 @@ createDatabase() {
 # replace templates with the schema value for this run
 genQueries() {
   local schema=$1
+  local scale=$2
   local i
 
   debug generating query sql for $schema
@@ -867,19 +855,7 @@ runQueries() {
       done
    else  # evaluate SETSTYLE words
       for i in `seq -w $BENCHMIN $BENCHMAX`; do
-         if [[ "$BENCH" == "TPCH" ]]; then
-            if [[ "$SET" == "good" ]]; then
-               if [[ "$i" == "08" || "$i" == "18" || "$i" == "20" ]]; then
-                  message "Set is $SET, so skipping $BENCH query ${i}"
-                  continue
-               fi
-            elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then
-               if [[ "$i" != "08" && "$i" != "18" && "$i" != "20" ]]; then
-                  message "Set is $SET, so skipping $BENCH query ${i}"
-                  continue
-               fi
-            fi
-         elif [[ "$BENCH" == "TPCDS" ]]; then
+         if [[ "$BENCH" == "TPCDS" ]]; then
             if [[ "$SET" == "good" ]]; then  # see SPLICE tickets 1020, 1016
                 if [[ "$SCALE" == "1" ]]; then
                    if [[ "$i" == "04" || "$i" == "11" || "$i" == "78" ]]; then
@@ -1072,7 +1048,7 @@ checkBenchResults() {
 	  # TODO: gather one explain plan for each query
 
 	  # generate query files for this SCHEMA
-	  genQueries $SCHEMA
+	  genQueries $SCHEMA $SCALE
 
 	  # TODO: implement TPCH validation checks
 
