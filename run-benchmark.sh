@@ -563,37 +563,40 @@ checkTPCHTableRowCounts() {
    # TOODO: figure out how to do multi-dimensional bash arrays
    local -a answers1=(150000 6001215 25 1500000 200000 800000 5 10000)
    local -a answers10=(10 10 10 10 10 10 10 10)
-   local -a answers100=(100 100 100 100 100 100 100 100)
+   local -a answers100=(15000000 600037902 25 150000000 20000000 80000000 5 1000000)
    local -a answers1000=(150000000 5999989709 25 1500000000 200000000 800000000 5 10000000)
-   local -a answers10000=(100 100 100 100 100 100 100 100)
+   local -a answers10000=(1500000000 59999994267 25 15000000000 2000000000 8000000000 5 100000000)
 
    # get counts from outfile and compare
    local -i i=0;
    local num;
    local -i err=0;
-   debug about to loop tables
    for table in $tables; do
       num=$(grep -A2 "^${table}[[:space:]]*$" $outfile | tail -1 | awk '{print $1}')
 
-      debug checkTPCHTableRowCounts: compare $num vs ${answers1[$i]} from $outfile
       if [[ "$scale" == "1" ]]; then
          if [[ "${answers1[$i]}" != "$num" ]]; then
+            debug checkTPCHTableRowCounts: table $table has $num rows, expected ${answers1[$i]}
             err=$((err+1))
          fi
       elif [[ "$scale" == "10" ]]; then
          if [[ "${answers10[$i]}" != "$num" ]]; then
+            debug checkTPCHTableRowCounts: table $table has $num rows, expected ${answers10[$i]}
             err=$((err+1))
          fi
       elif [[ "$scale" == "100" ]]; then
          if [[ "${answers100[$i]}" != "$num" ]]; then
+            debug checkTPCHTableRowCounts: table $table has $num rows, expected ${answers100[$i]}
             err=$((err+1))
          fi
       elif [[ "$scale" == "1000" ]]; then
          if [[ "${answers1000[$i]}" != "$num" ]]; then
+            debug checkTPCHTableRowCounts: table $table has $num rows, expected ${answers1000[$i]}
             err=$((err+1))
          fi
       elif [[ "$scale" == "10000" ]]; then
          if [[ "${answers10000[$i]}" != "$num" ]]; then
+            debug checkTPCHTableRowCounts: table $table has $num rows, expected ${answers10000[$i]}
             err=$((err+1))
          fi
       else # not implemented
