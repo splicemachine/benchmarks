@@ -640,10 +640,6 @@ validateSchema() {
       return 1
    fi
 
-   # check that indexes are present
-   if ( ! checkIndexCount $schema $INDEXCNT ); then
-      return 1
-   fi
 
    # TOODO: check compaction somehow?
 
