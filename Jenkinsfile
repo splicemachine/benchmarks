@@ -133,8 +133,7 @@ if (timeout) {
 }
 
 // Launch the docker container
-pipeline {
-    agent none
+node('python') {
     stages {
         stage('Run') {
             steps {
