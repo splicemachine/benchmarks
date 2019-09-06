@@ -136,7 +136,8 @@ if (timeout) {
 pipeline {
     agent {
         docker { 
-            image 'splicemachine/benchmark:latest',
+            image 'splicemachine/benchmark'
+            label 'latest'
             args '${dockerargs}'
         }
     }
