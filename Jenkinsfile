@@ -64,22 +64,22 @@ properties([
         choiceParam(
             description: 'Force database creation',
             name: 'createdb',
-            choices: 'no\yes'
+            choices: 'no\nyes'
         ),
         choiceParam(
             description: 'Print debug messags',
             name: 'debug',
-            choices: 'no\yes'
+            choices: 'no\nyes'
         ),
         choiceParam(
             description: 'Print Verbose messages',
             name: 'verbose',
-            choices: 'no\yes'
+            choices: 'no\nyes'
         ),
         choiceParam(
             description: 'Print explain plans',
             name: 'explain',
-            choices: 'no\yes'
+            choices: 'no\nyes'
         )
     ])
 ])
