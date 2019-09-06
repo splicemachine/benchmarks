@@ -134,11 +134,12 @@ if (timeout) {
 
 // Launch the docker container
 pipeline {
-    agent {
-        docker { 
-            image 'splicemachine/benchmark'
-            label 'latest'
-            args '${dockerargs}'
+    agent none
+    stages {
+        stage('Run') {
+            steps {
+                sh 'docker run splicemachine/benchmark:latest ${dockerargs}'
+            }
         }
     }
 }
