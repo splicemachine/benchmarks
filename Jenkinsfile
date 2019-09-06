@@ -131,6 +131,12 @@ if (datasource) {
 if (timeout) {
     dockerargs = '-t ' + timeout + ' '
 }
+if (hostname) {
+    dockerargs = '-h ' + hostname + ' '
+}
+if (url) {
+    dockerargs = '-u ' + url + ' '
+}
 
 // Launch the docker container
 node('python') {
