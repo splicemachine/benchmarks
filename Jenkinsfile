@@ -134,11 +134,7 @@ if (timeout) {
 
 // Launch the docker container
 node('python') {
-
     stage('Run') {
-        steps {
-            sh 'docker run splicemachine/benchmark:latest ${dockerargs}'
-        }
+        sh 'docker run splicemachine/benchmark:latest ${dockerargs}'
     }
-
 }
