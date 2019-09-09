@@ -145,6 +145,8 @@ node('python') {
         if (url) {
             dockerargs = '-u ' + url + ' '
         }
+
+        sh "Echo first try: $dockerargs"
     }
 
 
