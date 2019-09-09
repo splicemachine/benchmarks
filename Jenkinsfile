@@ -146,7 +146,7 @@ node('python') {
             dockerargs = '-u ' + url + ' '
         }
 
-        sh "Echo first try: $dockerargs"
+        sh "echo first try: $dockerargs"
     }
 
 
