@@ -14,7 +14,7 @@ properties([
         stringParam(
             description: 'Hostname - Required if Url not specified',
             name: 'hostname',
-            defaultValue: ''
+            defaultValue: 'localhost'
         ),
         stringParam(
             description: 'Url - Required if Hostname not specified.',
@@ -45,11 +45,6 @@ properties([
             description: 'Import data source',
             name: 'datasource',
             defaultValue: 's3a://splice-benchmark-data/flat/'
-        ),
-        stringParam(
-            description: 'Log directory',
-            name: 'logdir',
-            defaultValue: '/logs'
         ),
         choiceParam(
             description: 'Iterations',
@@ -94,7 +89,6 @@ def scale = "${params.scale}"
 def queryset = "${params.queryset}"
 def mode = "${params.mode}"
 def datasource = "${params.datasource}"
-def logdir = "${params.logdir}"
 def iterations = "${params.iterations}"
 def timeout = "${params.timeout}"
 def createdb = "${params.createdb}"
@@ -130,9 +124,6 @@ node('python') {
         if (name) {
             dockerargs = dockerargs + '-n ' + name + ' '
         }
-        if (logdir) {
-            dockerargs = dockerargs + '-L ' + logdir + ' '
-        }
         if (datasource) {
             dockerargs = dockerargs + '-d ' + datasource + ' '
         }
@@ -145,14 +136,9 @@ node('python') {
         if (url) {
             dockerargs = dockerargs + '-u ' + url + ' '
         }
-
-        sh "echo first try: $dockerargs"
     }
 
-
     stage('Run') {
-        sh 'ls -l'
-        sh "echo \"The options are: $dockerargs\""
         sh "./run-benchmark.sh $dockerargs"
     }
 }
