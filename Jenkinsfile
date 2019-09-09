@@ -125,25 +125,25 @@ node('python') {
             dockerargs = dockerargs + '-P '
         }
         if (label) {
-            dockerargs = '-l ' + label + ' '
+            dockerargs = dockerargs + '-l ' + label + ' '
         }
         if (name) {
-            dockerargs = '-n ' + name + ' '
+            dockerargs = dockerargs + '-n ' + name + ' '
         }
         if (logdir) {
-            dockerargs = '-L ' + logdir + ' '
+            dockerargs = dockerargs + '-L ' + logdir + ' '
         }
         if (datasource) {
-            dockerargs = '-d ' + datasource + ' '
+            dockerargs = dockerargs + '-d ' + datasource + ' '
         }
         if (timeout) {
-            dockerargs = '-t ' + timeout + ' '
+            dockerargs = dockerargs + '-t ' + timeout + ' '
         }
         if (hostname) {
-            dockerargs = '-h ' + hostname + ' '
+            dockerargs = dockerargs + '-h ' + hostname + ' '
         }
         if (url) {
-            dockerargs = '-u ' + url + ' '
+            dockerargs = dockerargs + '-u ' + url + ' '
         }
 
         sh "echo first try: $dockerargs"
@@ -152,7 +152,7 @@ node('python') {
 
     stage('Run') {
         sh 'ls -l'
-        sh 'echo "The options are: $dockerargs"'
-        sh './run-benchmark.sh $dockerargs'
+        sh "echo \"The options are: $dockerarg\""
+        sh "./run-benchmark.sh $dockerargs"
     }
 }
