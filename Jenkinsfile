@@ -146,6 +146,7 @@ node('python') {
     }
 
     stage('Run') {
+        sh 'ls -l'
         sh './run-benchmark.sh ${dockerargs}'
     }
 }
