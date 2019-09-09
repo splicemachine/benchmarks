@@ -147,7 +147,7 @@ node('python') {
 
     stage('Run') {
         sh 'ls -l'
-        sh 'echo "The options are: ${dockerargs}"'
-        sh './run-benchmark.sh ${dockerargs}'
+        sh 'echo "The options are: $dockerargs"'
+        sh './run-benchmark.sh $dockerargs'
     }
 }
