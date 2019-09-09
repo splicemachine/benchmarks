@@ -102,42 +102,6 @@ def debug = "${params.debug}"
 def verbose = "${params.verbose}"
 def explain = "${params.explain}"
 
-dockerargs = '-i ' + iterations + ' -m ' + mode + ' -S ' + queryset + ' -b ' + benchmark + ' -s ' + scale + ' '
-
-if( createdb == 'yes' ) {
-    dockerargs = dockerargs + '-C '
-}
-if( debug == 'yes' ) {
-    dockerargs = dockerargs + '-D '
-}
-if( verbose == 'yes' ) {
-    dockerargs = dockerargs + '-V '
-}
-if( explain == 'yes' ) {
-    dockerargs = dockerargs + '-P '
-}
-if (label) {
-    dockerargs = '-l ' + label + ' '
-}
-if (name) {
-    dockerargs = '-n ' + name + ' '
-}
-if (logdir) {
-    dockerargs = '-L ' + logdir + ' '
-}
-if (datasource) {
-    dockerargs = '-d ' + datasource + ' '
-}
-if (timeout) {
-    dockerargs = '-t ' + timeout + ' '
-}
-if (hostname) {
-    dockerargs = '-h ' + hostname + ' '
-}
-if (url) {
-    dockerargs = '-u ' + url + ' '
-}
-
 // Launch the docker container
 node('python') {
     stage('Checkout') {
@@ -145,41 +109,43 @@ node('python') {
       checkout scm
     }
 
-dockerargs = '-i ' + iterations + ' -m ' + mode + ' -S ' + queryset + ' -b ' + benchmark + ' -s ' + scale + ' '
+    stage('Set Dockerargs') {
+        dockerargs = '-i ' + iterations + ' -m ' + mode + ' -S ' + queryset + ' -b ' + benchmark + ' -s ' + scale + ' '
 
-if( createdb == 'yes' ) {
-    dockerargs = dockerargs + '-C '
-}
-if( debug == 'yes' ) {
-    dockerargs = dockerargs + '-D '
-}
-if( verbose == 'yes' ) {
-    dockerargs = dockerargs + '-V '
-}
-if( explain == 'yes' ) {
-    dockerargs = dockerargs + '-P '
-}
-if (label) {
-    dockerargs = '-l ' + label + ' '
-}
-if (name) {
-    dockerargs = '-n ' + name + ' '
-}
-if (logdir) {
-    dockerargs = '-L ' + logdir + ' '
-}
-if (datasource) {
-    dockerargs = '-d ' + datasource + ' '
-}
-if (timeout) {
-    dockerargs = '-t ' + timeout + ' '
-}
-if (hostname) {
-    dockerargs = '-h ' + hostname + ' '
-}
-if (url) {
-    dockerargs = '-u ' + url + ' '
-}
+        if( createdb == 'yes' ) {
+            dockerargs = dockerargs + '-C '
+        }
+        if( debug == 'yes' ) {
+            dockerargs = dockerargs + '-D '
+        }
+        if( verbose == 'yes' ) {
+            dockerargs = dockerargs + '-V '
+        }
+        if( explain == 'yes' ) {
+            dockerargs = dockerargs + '-P '
+        }
+        if (label) {
+            dockerargs = '-l ' + label + ' '
+        }
+        if (name) {
+            dockerargs = '-n ' + name + ' '
+        }
+        if (logdir) {
+            dockerargs = '-L ' + logdir + ' '
+        }
+        if (datasource) {
+            dockerargs = '-d ' + datasource + ' '
+        }
+        if (timeout) {
+            dockerargs = '-t ' + timeout + ' '
+        }
+        if (hostname) {
+            dockerargs = '-h ' + hostname + ' '
+        }
+        if (url) {
+            dockerargs = '-u ' + url + ' '
+        }
+    }
 
 
     stage('Run') {
