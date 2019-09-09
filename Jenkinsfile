@@ -152,7 +152,7 @@ node('python') {
 
     stage('Run') {
         sh 'ls -l'
-        sh "echo \"The options are: $dockerarg\""
+        sh "echo \"The options are: $dockerargs\""
         sh "./run-benchmark.sh $dockerargs"
     }
 }
