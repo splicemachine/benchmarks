@@ -861,7 +861,7 @@ runQueries() {
          if [[ "$BENCH" == "TPCDS" ]]; then
             if [[ "$SET" == "good" ]]; then  # see SPLICE tickets 1020, 1016
                 if [[ "$SCALE" == "1" ]]; then
-                   if [[ "$i" == "04" || "$i" == "11" || "$i" == "78" ]]; then
+                   if [[ "$i" == "11" || "$i" == "78" ]]; then
                       message "Set is $SET, so skipping $BENCH query ${i}"
                       continue
                    fi
@@ -880,7 +880,7 @@ runQueries() {
                fi
             elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1020, 1016
                if [[ "$SCALE" == "1" ]]; then
-                  if [[ "$i" != "04" && "$i" != "11" && "$i" != "78" ]]; then
+                  if [[ "$i" != "11" && "$i" != "78" ]]; then
                      message "Set is $SET, so skipping $BENCH query ${i}"
                      continue
                   fi
