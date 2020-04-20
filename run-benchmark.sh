@@ -860,12 +860,7 @@ runQueries() {
       for i in `seq -w $BENCHMIN $BENCHMAX`; do
          if [[ "$BENCH" == "TPCDS" ]]; then
             if [[ "$SET" == "good" ]]; then  # see SPLICE tickets 1020, 1016
-                if [[ "$SCALE" == "1" ]]; then
-                   if [[ "$i" == "11" || "$i" == "78" ]]; then
-                      message "Set is $SET, so skipping $BENCH query ${i}"
-                      continue
-                   fi
-                else
+                if [[ "$SCALE" != "1" ]]; then
                    if [[ "$i" == "04" || "$i" == "10" || "$i" == "11" || "$i" == "74" || "$i" == "78" || "$i" == "88" ]]; then
                       message "Set is $SET, so skipping $BENCH query ${i}"
                       continue
@@ -879,21 +874,16 @@ runQueries() {
                   continue
                fi
             elif [[ "$SET" == "errors" || "$SET" == "err" ]]; then # see SPLICE tickets 1020, 1016
-               if [[ "$SCALE" == "1" ]]; then
-                  if [[ "$i" != "11" && "$i" != "78" ]]; then
-                     message "Set is $SET, so skipping $BENCH query ${i}"
-                     continue
-                  fi
-               else
+               if [[ "$SCALE" != "1" ]]; then
                   if [[ "$i" != "04" || "$i" != "10" || "$i" != "11" || "$i" != "74" || "$i" != "78" || "$i" != "88" ]]; then
                      message "Set is $SET, so skipping $BENCH query ${i}"
                      continue
                   fi
                fi
             fi
-		 fi
-		 message "Running $BENCH query ${i} at scale $SCALE"
-		 runQuery "query-${i}.sql"
+	       fi
+	       message "Running $BENCH query ${i} at scale $SCALE"
+	       runQuery "query-${i}.sql"
       done
    fi
 }

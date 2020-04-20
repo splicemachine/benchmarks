@@ -1,6 +1,6 @@
 FROM openjdk:8-jre-alpine
 
-MAINTAINER Murray Brown <mbrown@splicemachine.com>
+MAINTAINER Oleg Mazurov <omazurov@splicemachine.com>
 
 # -----
 # TODO: merge all benchmarks into one image?  for now only TPCH and TPCDS
