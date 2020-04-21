@@ -32,17 +32,19 @@ help() {
 
 debug() {
   local msg="$*"
+  local currentDate=$(date -u +'%Y-%m-%d %H:%M:%S')
 
   if (( $DEBUG )); then
-    echo "DEBUG: $msg" >&2
+    echo "$currentDate [DEBUG]: $msg" >&2
   fi
 }
 
 messageBegin() {
   local msg="$*"
+  local currentDate=$(date -u +'%Y-%m-%d %H:%M:%S')
 
   if (( $VERBOSE )); then
-    echo -ne "$msg"
+    echo -ne "$currentDate: $msg"
   fi
   if (( $DEBUG )); then
     # need a newline to fix messaging when debug to stderr overwrites stdout
@@ -52,9 +54,10 @@ messageBegin() {
 
 message() {
   local msg="$*"
+  local currentDate=$(date -u +'%Y-%m-%d %H:%M:%S')
 
   if (( $VERBOSE )); then
-    echo -e "$msg"
+    echo -e "$currentDate: $msg"
   fi
 }
 
