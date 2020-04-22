@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Author: Murray Brown <mbrown@splicemachine.com>
 
 usage() {
@@ -17,7 +16,7 @@ help() {
   echo -e "\t -s scale \t\t scale of (default: 1) {valid scales 1, 10, 100, 1000}"
   echo -e "\t -S set \t\t which query set to run (default: good) {valid: good, snow, all, errors}"
   echo -e "\t\t\t\t you can also supply a list of one or more comma-separated query numbers e.g. 01,07,21"
-  echo -e "\t -m mode \t\t mode for setup (default: bulk) {valid: bulk or linear}"
+  echo -e "\t -m mode \t\t mode for setup (default: bulk) {valid: bulk, linear, parquet or orc}"
   echo -e "\t -d dir \t\t import data source (default: ${DATASOURCE})"
   echo -e "\t -L logdir \t\t a directory to base the logs (default: /logs)"
   echo -e "\t -l label \t\t a label to identify the output (default: scale and date)"
@@ -198,6 +197,7 @@ elif [[ "$HOST" != "" ]]; then
 else
   HOSTORURL="-U ${URL}" 
 fi
+
 debug host-or-url is ${HOSTORURL}
 
 # TOODO: figure out if URL is 'well-formed'
@@ -292,8 +292,8 @@ if [[ "$SET" != "good" && "$SET" != "snow" && "$SET" != "all" && "$SET" != "erro
 fi
 
 # check MODE (bulk, linear)
-if [[ "$MODE" != "bulk" && "$MODE" != "linear" ]]; then
-   echo "Error: mode argument $MODE is not supported. Valid values: [ bulk, linear ]"
+if [[ "$MODE" != "bulk" && "$MODE" != "linear" && "$MODE" != "parquet" && "$MODE" != "orc" ]]; then
+   echo "Error: mode argument $MODE is not supported. Valid values: [ bulk, linear, parquet, orc ]"
    usage
    exit 2
 fi
@@ -672,6 +672,7 @@ fillQueryTemplate() {
   local file=$1
   local schema=$2
   local scale=$3
+  local mode=$4
 
   local input="${BASEDIR}${BENCHMARK}/templates/$file"
   local output="$SQLDIR/$file"
@@ -691,6 +692,7 @@ fillQueryTemplate() {
   cat $input | sed \
    -e "s/##SCHEMA##/$schema/g" \
    -e "s/##SCALE##/$scale/g" \
+   -e "s/##MODE##/$mode/g" \
    -e "s/##QRY11##/${QRY11}/g" \
    -e "s%##DSRC##%$DATASOURCE%g" \
    -e "s/##EXPLAIN##/$explain/g" \
@@ -721,90 +723,103 @@ createDatabase() {
    local -i dropTime=$(checkQueryTime "${LOGDIR}/setup-01-drop.out")
    message " took $dropTime milliseconds."
 
-   messageBegin "$schema: Creating tables . . ."
-   fillQueryTemplate "setup-01-tables.sql" $schema $scale
-   runQuery "setup-01-tables.sql"
-   local -i createTime=$(checkQueryTime "${LOGDIR}/setup-01-tables.out")
-   message " took $createTime milliseconds."
+   if [[ "$mode" == "parquet" || "$mode" == "orc" ]]; then
+     messageBegin "$schema: Creating tables (external, $mode) . . ."
+     fillQueryTemplate "setup-01-external-tables.sql" $schema $scale $mode
+     runQuery "setup-01-external-tables.sql"
+     local -i createTime=$(checkQueryTime "${LOGDIR}/setup-01-external-tables.sql")
+     message " took $createTime milliseconds."
 
-   errCount=$(checkQueryError "${LOGDIR}/setup-01-tables.out")
-   if [[ $errCount -gt 0 ]]; then
-      message "Error: errors seen during table create: $errCount"
-      exit 1
-   elif ( ! checkTableCount $schema $TABLECNT ); then
-      message "Error making $TABLECNT tables on $schema"
-      exit 1
-   fi
+     local -i loadTime=0
+     local -i indexTime=0
+     local -i compactTime=0
+   else
+     messageBegin "$schema: Creating tables (internal) . . ."
+     fillQueryTemplate "setup-01-tables.sql" $schema $scale
+     runQuery "setup-01-tables.sql"
+     local -i createTime=$(checkQueryTime "${LOGDIR}/setup-01-tables.out")
+     message " took $createTime milliseconds."
 
-   # TOODO: ensure that no current load process is already running
+     errCount=$(checkQueryError "${LOGDIR}/setup-01-tables.out")
+     if [[ $errCount -gt 0 ]]; then
+        message "Error: errors seen during table create: $errCount"
+        exit 1
+     elif ( ! checkTableCount $schema $TABLECNT ); then
+        message "Error making $TABLECNT tables on $schema"
+        exit 1
+     fi
 
-   if [[ "$mode" == "linear" ]]; then
-      fillQueryTemplate "setup-02-linear-import.sql" $schema $scale
-      fillQueryTemplate "setup-03-linear-indexes.sql" $schema $scale
 
-      messageBegin "$schema: Loading data with IMPORT_DATA . . . "
-      runQuery "setup-02-linear-import.sql"
-      local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-02-linear-import.out")
-      message " took $loadTime milliseconds."
-      errCount=$(checkQueryError "${LOGDIR}/setup-02-linear-import.out")
-      if [[ $errCount -gt 0 ]]; then
-         echo "Error: failure during s3 data load. Is your cluster configured to read from s3?"
-         exit 2
-      fi
+     # TOODO: ensure that no current load process is already running
 
-      messageBegin "$schema: Creating linear indexes . . ."
-      runQuery "setup-03-linear-indexes.sql"
-      local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-03-linear-indexes.out")
-      message " took $indexTime milliseconds."
-      errCount=$(checkQueryError "${LOGDIR}/setup-03-linear-indexes.out")
-      if [[ $errCount -gt 0 ]]; then
-         echo "Error: failure during index creation"
-         exit 3
-      elif ( ! checkIndexCount $schema $INDEXCNT ); then
-         echo "Error: $schema is missing $INDEXCNT indexes"
-         exit 3
-      fi
+     if [[ "$mode" == "linear" ]]; then
+        fillQueryTemplate "setup-02-linear-import.sql" $schema $scale
+        fillQueryTemplate "setup-03-linear-indexes.sql" $schema $scale
 
-      messageBegin "$schema: Running compaction . . ."
-      fillQueryTemplate "setup-04-compact.sql" $schema $scale
-      runQuery "setup-04-compact.sql"
-      local -i compactTime=$(checkQueryTime "${LOGDIR}/setup-04-compact.out")
-      message " took $compactTime milliseconds."
-      errCount=$(checkQueryError "${LOGDIR}/setup-04-compact.out")
-      if [[ $errCount -gt 0 ]]; then
-         echo "Error: compaction returned an error?"
-         exit 4
-      fi
-   else # i.e. mode=bulk
-      # TOODO: complete pre-split-points for indexes
+        messageBegin "$schema: Loading data with IMPORT_DATA . . . "
+        runQuery "setup-02-linear-import.sql"
+        local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-02-linear-import.out")
+        message " took $loadTime milliseconds."
+        errCount=$(checkQueryError "${LOGDIR}/setup-02-linear-import.out")
+        if [[ $errCount -gt 0 ]]; then
+           echo "Error: failure during s3 data load. Is your cluster configured to read from s3?"
+           exit 2
+        fi
 
-      messageBegin "$schema: Pre-creating indexes . . ."
-      fillQueryTemplate "setup-02-bulk-splitindex.sql" $schema $scale
-      runQuery "setup-02-bulk-splitindex.sql"
-      local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-02-bulk-splitindex.out")
-      message " took $indexTime milliseconds."
-      errCount=$(checkQueryError "${LOGDIR}/setup-02-bulk-splitindex.out")
-      if [[ $errCount -gt 0 ]]; then
-         echo "Error: failure during creation of indexes on empty tables"
-         exit 2
-      elif ( ! checkIndexCount $schema $INDEXCNT ); then
-         echo "Error: $schema is missing $INDEXCNT indexes"
-         exit 2
-      fi
+        messageBegin "$schema: Creating linear indexes . . ."
+        runQuery "setup-03-linear-indexes.sql"
+        local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-03-linear-indexes.out")
+        message " took $indexTime milliseconds."
+        errCount=$(checkQueryError "${LOGDIR}/setup-03-linear-indexes.out")
+        if [[ $errCount -gt 0 ]]; then
+           echo "Error: failure during index creation"
+           exit 3
+        elif ( ! checkIndexCount $schema $INDEXCNT ); then
+           echo "Error: $schema is missing $INDEXCNT indexes"
+           exit 3
+        fi
 
-      # hfile bulk load from s3 for faster load
-      messageBegin "$schema: Bulk loading data . . ."
-      fillQueryTemplate "setup-03-bulk-import.sql" $schema $scale
-      runQuery "setup-03-bulk-import.sql"
-      local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-03-bulk-import.out")
-      message " took $loadTime milliseconds."
-      errCount=$(checkQueryError "${LOGDIR}/setup-03-bulk-import.out")
-      if [[ $errCount -gt 0 ]]; then
-        echo "Error: failure during data bulkload."
-        exit 3
-      fi
+        messageBegin "$schema: Running compaction . . ."
+        fillQueryTemplate "setup-04-compact.sql" $schema $scale
+        runQuery "setup-04-compact.sql"
+        local -i compactTime=$(checkQueryTime "${LOGDIR}/setup-04-compact.out")
+        message " took $compactTime milliseconds."
+        errCount=$(checkQueryError "${LOGDIR}/setup-04-compact.out")
+        if [[ $errCount -gt 0 ]]; then
+           echo "Error: compaction returned an error?"
+           exit 4
+        fi
+     else # i.e. mode=bulk
+        # TOODO: complete pre-split-points for indexes
 
-      local -i compactTime=0
+        messageBegin "$schema: Pre-creating indexes . . ."
+        fillQueryTemplate "setup-02-bulk-splitindex.sql" $schema $scale
+        runQuery "setup-02-bulk-splitindex.sql"
+        local -i indexTime=$(checkQueryTime "${LOGDIR}/setup-02-bulk-splitindex.out")
+        message " took $indexTime milliseconds."
+        errCount=$(checkQueryError "${LOGDIR}/setup-02-bulk-splitindex.out")
+        if [[ $errCount -gt 0 ]]; then
+           echo "Error: failure during creation of indexes on empty tables"
+           exit 2
+        elif ( ! checkIndexCount $schema $INDEXCNT ); then
+           echo "Error: $schema is missing $INDEXCNT indexes"
+           exit 2
+        fi
+
+        # hfile bulk load from s3 for faster load
+        messageBegin "$schema: Bulk loading data . . ."
+        fillQueryTemplate "setup-03-bulk-import.sql" $schema $scale
+        runQuery "setup-03-bulk-import.sql"
+        local -i loadTime=$(checkQueryTime "${LOGDIR}/setup-03-bulk-import.out")
+        message " took $loadTime milliseconds."
+        errCount=$(checkQueryError "${LOGDIR}/setup-03-bulk-import.out")
+        if [[ $errCount -gt 0 ]]; then
+          echo "Error: failure during data bulkload."
+          exit 3
+        fi
+
+        local -i compactTime=0
+     fi
    fi
 
    messageBegin "$schema: Gathering statistics . . ."
