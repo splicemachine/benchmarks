@@ -977,6 +977,7 @@ checkBenchResults() {
         fi
 	    echo "$date|$bench|$iter|$status|$errorCode||$elapsed" >> ${LOGBASE}logs/test_run.csv
     done
+    cp ${LOGBASE}logs/test_run.csv ${LOGDIR}
 }
 
 	# TOODO: iterate over many results
